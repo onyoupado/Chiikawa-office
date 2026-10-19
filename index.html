@@ -1,0 +1,695 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>치이카와 오피스</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&family=Nanum+Gothic+Coding&display=swap">
+<style>
+/* Layout: a top-down company floor plan (7 rooms around one corridor) the crew walks through; work order + result + board below. Day office in light, night office in dark. */
+:root{
+  --bg:#f4f7fc; --panel:#ffffff; --line:#dbe2ef; --ink:#2d3149; --muted:#6b7190;
+  --corridor:#eef1f6; --corridor2:#e6eaf2; --wall:#9aa6c4;
+  --r-meet:#ece6fb; --r-work:#e2eefa; --r-pantry:#fdf3d2; --r-elev:#e3e7ee; --r-wc:#dff3ec; --r-lounge:#fde4ec; --r-archive:#f3eadf;
+  --desk:#ffffff; --desk-edge:#c3cfe6; --screen:#eaf3ff; --screen-ink:#43608f; --wood:#e8d2b4; --sofa:#ff9fb8; --metal:#c9d0dc; --steel:#aeb7c8;
+  --pink:#ff8fb1; --blue:#6f9fd8; --blue-soft:#e1ecfa; --yellow:#f2cf4a; --yellow-soft:#fdf3c9;
+  --ok:#3f9d6b; --ok-soft:#dcf2e5; --bad:#d0505f; --leaf:#7cc29a;
+  --f-display:"Gaegu","Comic Sans MS",cursive; --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif; --f-mono:"Nanum Gothic Coding",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8;
+  --corridor:#202642; --corridor2:#1c2240; --wall:#4d5885;
+  --r-meet:#2b2850; --r-work:#1f2d4f; --r-pantry:#3a3423; --r-elev:#262c40; --r-wc:#1d3833; --r-lounge:#3d2537; --r-archive:#352d27;
+  --desk:#323a5e; --desk-edge:#46507c; --screen:#16213f; --screen-ink:#9fc2ff; --wood:#6b5640; --sofa:#b85b78; --metal:#59627e; --steel:#4a5370;
+  --pink:#ff9cbb; --blue:#8db6ea; --blue-soft:#25365a; --yellow:#f5d65e; --yellow-soft:#463d1e;
+  --ok:#6cd09a; --ok-soft:#1c3b2c; --bad:#ff8592; --leaf:#5c9c78; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8;
+  --corridor:#202642; --corridor2:#1c2240; --wall:#4d5885;
+  --r-meet:#2b2850; --r-work:#1f2d4f; --r-pantry:#3a3423; --r-elev:#262c40; --r-wc:#1d3833; --r-lounge:#3d2537; --r-archive:#352d27;
+  --desk:#323a5e; --desk-edge:#46507c; --screen:#16213f; --screen-ink:#9fc2ff; --wood:#6b5640; --sofa:#b85b78; --metal:#59627e; --steel:#4a5370;
+  --pink:#ff9cbb; --blue:#8db6ea; --blue-soft:#25365a; --yellow:#f5d65e; --yellow-soft:#463d1e;
+  --ok:#6cd09a; --ok-soft:#1c3b2c; --bad:#ff8592; --leaf:#5c9c78; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:700;font-size:2.4rem;line-height:1;margin:0}
+h1 small{display:block;font-family:var(--f-body);font-weight:400;font-size:.9rem;color:var(--muted);margin-top:6px}
+.mode{font-size:.8rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+.mode b{color:var(--ink)}
+.mode.live{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+
+.status{display:flex;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:8px 14px;flex-wrap:wrap}
+.status .lbl{font-size:.72rem;letter-spacing:.08em;color:var(--muted)}
+.status .now{font-family:var(--f-display);font-weight:700;font-size:1.3rem;line-height:1.1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status .bar{flex:0 1 220px;height:10px;border-radius:10px;background:var(--line);overflow:hidden;min-width:100px}
+.status .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pink),var(--blue),var(--yellow));transition:width .6s ease}
+.status .clock{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.9rem;color:var(--muted)}
+
+/* ---------- floor plan (1000 x 640 logical units) ---------- */
+.mapwrap{overflow-x:auto;border-radius:20px;border:2px solid var(--line);background:var(--corridor)}
+.map{position:relative;min-width:760px;aspect-ratio:1000/640;container-type:inline-size;overflow:hidden;
+  background:repeating-linear-gradient(90deg,var(--corridor) 0 4cqw,var(--corridor2) 4cqw 8cqw)}
+.room{position:absolute;border:.6cqw solid var(--wall);border-radius:1.2cqw}
+.room .rl{position:absolute;left:1.2cqw;top:.6cqw;font-family:var(--f-display);font-weight:700;font-size:1.9cqw;line-height:1.2;color:var(--ink);opacity:.8}
+.r-meeting{background:var(--r-meet)}.r-work{background:var(--r-work)}.r-pantry{background:var(--r-pantry)}
+.r-elevator{background:var(--r-elev)}.r-restroom{background:var(--r-wc)}.r-lounge{background:var(--r-lounge)}.r-archive{background:var(--r-archive)}
+.door{position:absolute;background:var(--corridor);z-index:1}
+.corr-label{position:absolute;font-family:var(--f-display);font-size:1.5cqw;color:var(--muted);letter-spacing:.3em}
+.f{position:absolute;border-radius:.8cqw}
+.table{background:var(--wood);border:.3cqw solid var(--desk-edge);border-radius:2cqw}
+.wb{background:var(--panel);border:.35cqw solid var(--steel);border-radius:.6cqw;padding:.5cqw .9cqw;overflow:hidden;font-size:1.1cqw;line-height:1.35}
+.wb b{display:block;font-family:var(--f-display);font-size:1.6cqw;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb ul{margin:.3cqw 0 0;padding-left:1.3cqw}
+.desk{background:var(--desk);border:.3cqw solid var(--desk-edge);border-radius:.6cqw;padding:.4cqw;display:flex;flex-direction:column;gap:.3cqw}
+.mon{flex:1;min-height:0;background:var(--screen);border:.2cqw solid var(--desk-edge);border-radius:.4cqw;padding:.2cqw .4cqw;font-family:var(--f-mono);font-size:.78cqw;line-height:1.25;color:var(--screen-ink);overflow:hidden;white-space:pre-wrap;word-break:break-all}
+.np{font-size:.95cqw;line-height:1;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.desk.on .np{color:var(--ink);font-weight:700}
+.desk.on .mon::after{content:"▍";animation:blink .7s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.machine{background:var(--steel);border:.3cqw solid var(--wall)}
+.machine::after{content:"";position:absolute;left:35%;bottom:12%;width:30%;height:22%;background:var(--panel);border-radius:0 0 .5cqw .5cqw}
+.fridge{background:var(--metal);border:.3cqw solid var(--wall)}
+.fridge::after{content:"";position:absolute;left:0;right:0;top:38%;border-top:.3cqw solid var(--wall)}
+.counter{background:var(--wood);border:.3cqw solid var(--desk-edge)}
+.stall{background:var(--panel);border:.3cqw solid var(--wall);border-bottom:none;border-radius:.6cqw .6cqw 0 0}
+.stall::after{content:"";position:absolute;right:15%;top:45%;width:.6cqw;height:.6cqw;border-radius:50%;background:var(--wall)}
+.sign{font-family:var(--f-display);font-weight:700;font-size:1.6cqw;color:var(--blue);text-align:center}
+.sofa{background:var(--sofa);border:.3cqw solid var(--wall);border-radius:1.6cqw 1.6cqw .8cqw .8cqw}
+.bean{background:var(--yellow);border:.3cqw solid var(--wall);border-radius:50%}
+.tv{background:#1f2337;border:.4cqw solid var(--wall);color:#9fe3c0;font-family:var(--f-mono);font-size:.9cqw;display:grid;place-items:center}
+.plant{background:var(--leaf);border-radius:50% 50% 40% 40%;border:.3cqw solid var(--wall)}
+.shelf{background:var(--wood);border:.3cqw solid var(--wall);background-image:repeating-linear-gradient(transparent 0 30%,var(--wall) 30% 34%)}
+.printer{background:var(--metal);border:.3cqw solid var(--wall)}
+.elev{background:#2a2e40;border:.4cqw solid var(--wall);overflow:hidden;border-radius:.6cqw .6cqw 0 0}
+.elev i{position:absolute;top:0;bottom:0;width:50%;background:var(--steel);transition:transform .6s ease;border-left:.15cqw solid var(--wall)}
+.elev .l{left:0;border-left:none;border-right:.15cqw solid var(--wall)}.elev .r{right:0}
+.elev.open .l{transform:translateX(-100%)}.elev.open .r{transform:translateX(100%)}
+.ind{background:#1f2337;color:#ffcf66;font-family:var(--f-mono);font-size:1.1cqw;display:grid;place-items:center;border-radius:.4cqw}
+.water{background:var(--blue-soft);border:.3cqw solid var(--wall);border-radius:.6cqw .6cqw .3cqw .3cqw}
+
+.mate{position:absolute;width:5.6%;aspect-ratio:1;transform:translate(-50%,-85%);transition:opacity .4s}
+.mate .body{width:100%;height:100%}
+.mate svg{width:100%;height:100%;display:block;overflow:visible;transition:transform .15s}
+.mate.left svg{transform:scaleX(-1)}
+.mate.walk .body{animation:waddle .28s ease-in-out infinite alternate}
+.mate.work .body{animation:bob .45s ease-in-out infinite alternate}
+.mate.cheer .body{animation:hop .5s ease-out 3}
+.mate.gone{opacity:0}
+.mate .nm{position:absolute;left:50%;top:96%;transform:translateX(-50%);font-size:1.05cqw;line-height:1;white-space:nowrap;background:var(--panel);border:.15cqw solid var(--line);border-radius:1cqw;padding:.15cqw .5cqw}
+@keyframes waddle{from{transform:rotate(-7deg) translateY(0)}to{transform:rotate(7deg) translateY(-6%)}}
+@keyframes bob{to{transform:translateY(-6%) rotate(-2deg)}}
+@keyframes hop{50%{transform:translateY(-22%)}}
+.bub{position:absolute;z-index:3000;transform:translate(-50%,-100%) scale(.6);margin-top:-5.4cqw;opacity:0;pointer-events:none;
+  background:var(--panel);border:.25cqw solid var(--ink);border-radius:1.4cqw;padding:.35cqw 1cqw;font-family:var(--f-display);font-weight:700;font-size:1.5cqw;line-height:1.2;white-space:nowrap;transition:opacity .25s,transform .25s}
+.bub::after{content:"";position:absolute;left:50%;bottom:-.75cqw;width:1.1cqw;height:1.1cqw;background:var(--panel);border-right:.25cqw solid var(--ink);border-bottom:.25cqw solid var(--ink);transform:translateX(-50%) rotate(45deg)}
+.bub.show{opacity:1;transform:translate(-50%,-100%) scale(1)}
+.maphint{font-size:.78rem;color:var(--muted);margin:-8px 0 0}
+@media (min-width:800px){.maphint{display:none}}
+
+/* ---------- panels ---------- */
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px;align-items:start}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:16px;min-width:0}
+.panel h2{font-family:var(--f-display);font-size:1.5rem;margin:0 0 10px;line-height:1.1}
+.stack{display:flex;flex-direction:column;gap:16px;min-width:0}
+textarea{width:100%;min-height:96px;resize:vertical;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;color:var(--ink);background:var(--bg)}
+textarea:focus-visible,button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn{font:inherit;font-family:var(--f-display);font-weight:700;font-size:1.15rem;border:2px solid var(--ink);background:var(--pink);color:#2d3149;border-radius:12px;padding:6px 18px;cursor:pointer;box-shadow:0 3px 0 var(--ink);transition:transform .1s,box-shadow .1s}
+.btn:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+.btn.ghost{background:var(--panel);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font:inherit;font-size:.8rem;border:1px dashed var(--desk-edge);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip:hover{color:var(--ink);border-color:var(--ink)}
+.hint{font-size:.78rem;color:var(--muted);margin:0 0 6px;display:block}
+.result{position:relative;min-height:240px}
+.result .meta{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.result .ttl{font-family:var(--f-display);font-size:1.5rem;font-weight:700;line-height:1.1}
+.doc{max-height:460px;overflow:auto;padding-right:6px;font-size:.92rem}
+.doc h3,.doc h4{font-family:var(--f-display);font-size:1.3rem;margin:14px 0 4px;line-height:1.2}
+.doc h4{font-size:1.15rem}
+.doc p{margin:6px 0}.doc ul,.doc ol{margin:6px 0;padding-left:1.3em}.doc li{margin:2px 0}
+.doc .note{background:var(--yellow-soft);border-radius:10px;padding:6px 10px;font-size:.85rem}
+.doc .empty{color:var(--muted)}
+.review{margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;display:flex;gap:10px;align-items:flex-start}
+.review .mini{width:40px;height:40px;flex:none}
+.review .stars{color:var(--yellow);letter-spacing:2px}
+.review p{margin:0;font-size:.88rem}
+.stamp{position:absolute;right:16px;top:14px;transform:rotate(-12deg) scale(1.6);opacity:0;border:3px solid var(--bad);color:var(--bad);font-family:var(--f-display);font-weight:700;font-size:1.25rem;padding:0 10px;border-radius:8px;transition:all .35s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.stamp.on{opacity:.9;transform:rotate(-12deg) scale(1)}
+.kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.kanban{grid-template-columns:minmax(0,1fr)}}
+.col{background:var(--bg);border-radius:12px;padding:8px;min-height:90px;display:flex;flex-direction:column;gap:6px}
+.col h3{margin:0 0 2px;font-size:.78rem;letter-spacing:.06em;color:var(--muted);font-weight:400;display:flex;justify-content:space-between}
+.card{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:6px 9px;font-size:.84rem;cursor:pointer;text-align:left;font-family:inherit;color:inherit;width:100%}
+.card.sel{border-color:var(--pink)}.card.fail{border-color:var(--bad)}
+.card .t{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .s{font-size:.72rem;color:var(--muted)}
+.ex{font-size:.65rem;background:var(--blue-soft);color:var(--blue);border-radius:6px;padding:0 5px;margin-left:4px}
+.log{font-family:var(--f-mono);font-size:.76rem;max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:3px}
+.log div{display:flex;gap:8px}.log time{color:var(--muted);flex:none;font-variant-numeric:tabular-nums}
+.log b{font-weight:400;flex:none}
+.who-rakko{color:#a87a52}.who-chiikawa{color:var(--pink)}.who-hachiware{color:var(--blue)}.who-usagi{color:#c9a21a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .who-rakko{color:#d7ab84}}
+:root[data-theme="dark"] .who-rakko{color:#d7ab84}
+footer{font-size:.75rem;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>치이카와 오피스<small>업무를 지시하면 팀이 회의실에 모이고, 자료실·탕비실·자리를 오가며 일을 끝내요.</small></h1>
+    <span class="mode" id="mode">연결 확인 중…</span>
+  </header>
+
+  <div class="status"><span class="lbl">지금 하는 일</span><span class="now" id="now">대기 중이에요</span><div class="bar"><i id="bar"></i></div><span class="clock" id="clock"></span></div>
+
+  <div class="mapwrap"><div class="map" id="map" role="img" aria-label="회의실, 업무 공간, 탕비실, 엘리베이터, 화장실, 휴게실, 자료실이 복도로 이어진 사무실 지도"></div></div>
+  <p class="maphint">지도는 옆으로 밀어서 볼 수 있어요.</p>
+
+  <div class="grid2">
+    <div class="stack">
+      <section class="panel">
+        <h2>업무 지시서</h2>
+        <form id="form">
+          <label for="task" class="hint">맡길 일을 적어 주세요. 여러 개를 넣으면 순서대로 처리해요. (Ctrl+Enter)</label>
+          <textarea id="task" placeholder="예: 다음 주 팀 회식 장소 후보 3곳과 공지 문구 만들어줘"></textarea>
+          <div class="row">
+            <button class="btn" type="submit">지시하기</button>
+            <button class="btn ghost" type="button" id="stop" hidden>멈추기</button>
+          </div>
+          <div class="chips" id="chips"></div>
+        </form>
+      </section>
+      <section class="panel">
+        <h2>업무 보드</h2>
+        <div class="kanban">
+          <div class="col"><h3>대기 <span id="nQ">0</span></h3><div id="colQ"></div></div>
+          <div class="col"><h3>진행 중 <span id="nW">0</span></h3><div id="colW"></div></div>
+          <div class="col"><h3>완료 <span id="nD">0</span></h3><div id="colD"></div></div>
+        </div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="panel result">
+        <div class="meta"><span class="ttl" id="rTitle">결과물</span><button class="btn ghost" type="button" id="copy" style="font-size:.95rem;padding:3px 12px">복사</button></div>
+        <div class="doc" id="rDoc"><p class="empty">업무를 지시하면 여기에 결과물이 나와요.</p></div>
+        <div class="review" id="rReview" hidden></div>
+        <div class="stamp" id="stamp">야하! 승인</div>
+      </section>
+      <section class="panel">
+        <h2>사무실 로그</h2>
+        <div class="log" id="log"></div>
+      </section>
+    </div>
+  </div>
+  <footer>팬이 만든 비공식 프로젝트예요. 치이카와 캐릭터의 권리는 원작자 나가노에게 있어요.</footer>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rand = a => a[Math.floor(Math.random() * a.length)];
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- characters (pure SVG, drawn in code) ---------- */
+const L = "#33364a";
+const eyes = (y=56) => `<ellipse cx="38" cy="${y}" rx="3.6" ry="4.6" fill="${L}"/><ellipse cx="62" cy="${y}" rx="3.6" ry="4.6" fill="${L}"/><circle cx="39.2" cy="${y-1.8}" r="1.3" fill="#fff"/><circle cx="63.2" cy="${y-1.8}" r="1.3" fill="#fff"/>`;
+const blush = (y=66) => `<ellipse cx="27" cy="${y}" rx="7" ry="3.8" fill="#ff9fb8" opacity=".75"/><ellipse cx="73" cy="${y}" rx="7" ry="3.8" fill="#ff9fb8" opacity=".75"/>`;
+const SVG = {
+  chiikawa: `<svg viewBox="0 0 100 100"><circle cx="29" cy="27" r="9" fill="#fff" stroke="${L}" stroke-width="2.5"/><circle cx="71" cy="27" r="9" fill="#fff" stroke="${L}" stroke-width="2.5"/><ellipse cx="50" cy="60" rx="38" ry="33" fill="#fff" stroke="${L}" stroke-width="2.5"/>${eyes()}${blush()}<path d="M46 65 q4 3.5 8 0" fill="none" stroke="${L}" stroke-width="2" stroke-linecap="round"/></svg>`,
+  hachiware: `<svg viewBox="0 0 100 100"><defs><clipPath id="hwclip"><ellipse cx="50" cy="60" rx="38" ry="33"/></clipPath></defs><path d="M17 44 L22 12 L42 30 Z" fill="#9dbde2" stroke="${L}" stroke-width="2.5" stroke-linejoin="round"/><path d="M83 44 L78 12 L58 30 Z" fill="#9dbde2" stroke="${L}" stroke-width="2.5" stroke-linejoin="round"/><ellipse cx="50" cy="60" rx="38" ry="33" fill="#fff"/><path clip-path="url(#hwclip)" d="M0 52 L0 0 L100 0 L100 52 L66 50 L50 33 L34 50 Z" fill="#9dbde2"/><ellipse cx="50" cy="60" rx="38" ry="33" fill="none" stroke="${L}" stroke-width="2.5"/>${eyes(57)}${blush(67)}<path d="M44 65 q3 3 6 0 q3 3 6 0" fill="none" stroke="${L}" stroke-width="2" stroke-linecap="round"/></svg>`,
+  usagi: `<svg viewBox="0 0 100 100"><ellipse cx="38" cy="18" rx="7.5" ry="21" fill="#fbe7a1" stroke="${L}" stroke-width="2.5" transform="rotate(-8 38 18)"/><ellipse cx="62" cy="16" rx="7.5" ry="21" fill="#fbe7a1" stroke="${L}" stroke-width="2.5" transform="rotate(10 62 16)"/><ellipse cx="38" cy="20" rx="3" ry="13" fill="#ffc3cf" transform="rotate(-8 38 20)"/><ellipse cx="62" cy="18" rx="3" ry="13" fill="#ffc3cf" transform="rotate(10 62 18)"/><ellipse cx="50" cy="61" rx="37" ry="32" fill="#fbe7a1" stroke="${L}" stroke-width="2.5"/><circle cx="38" cy="56" r="3.2" fill="${L}"/><circle cx="62" cy="56" r="3.2" fill="${L}"/>${blush(65)}<path d="M41 63 q9 16 18 0 Z" fill="#c9455c" stroke="${L}" stroke-width="2" stroke-linejoin="round"/></svg>`,
+  rakko: `<svg viewBox="0 0 100 100"><circle cx="24" cy="34" r="7" fill="#b98d68" stroke="${L}" stroke-width="2.5"/><circle cx="76" cy="34" r="7" fill="#b98d68" stroke="${L}" stroke-width="2.5"/><ellipse cx="50" cy="60" rx="38" ry="33" fill="#b98d68" stroke="${L}" stroke-width="2.5"/><ellipse cx="50" cy="66" rx="26" ry="20" fill="#f1dfc9"/>${eyes(55)}<ellipse cx="50" cy="64" rx="5" ry="3.5" fill="${L}"/><path d="M45 70 q5 4 10 0" fill="none" stroke="${L}" stroke-width="2" stroke-linecap="round"/></svg>`,
+};
+
+/* ---------- floor plan ---------- */
+const CY = 320; // corridor centre line
+const ROOMS = {
+  meeting:{name:"회의실",x:20,y:20,w:280,h:270,door:160},
+  work:{name:"업무 공간",x:300,y:20,w:400,h:270,door:500},
+  pantry:{name:"탕비실",x:700,y:20,w:280,h:270,door:840},
+  elevator:{name:"엘리베이터",x:20,y:350,w:150,h:270,door:95},
+  restroom:{name:"화장실",x:170,y:350,w:160,h:270,door:250},
+  lounge:{name:"휴게실",x:330,y:350,w:370,h:270,door:515},
+  archive:{name:"자료실",x:700,y:350,w:280,h:270,door:840},
+};
+const isTop = r => r.y < CY;
+const inner = r => isTop(r) ? r.y + r.h - 22 : r.y + 22;
+const SPOT = {
+  desk:{rakko:{x:420,y:110},chiikawa:{x:580,y:110},hachiware:{x:420,y:220},usagi:{x:580,y:220}},
+  meet:[{x:90,y:125},{x:230,y:125},{x:90,y:215},{x:230,y:215}],
+  coffee:{x:765,y:150}, fridge:{x:915,y:150}, snack:[{x:800,y:240},{x:880,y:240}],
+  wc:[{x:212,y:500},{x:290,y:500}],
+  sofa:[{x:420,y:545},{x:480,y:545}], tv:{x:630,y:470}, bean:{x:385,y:455},
+  shelf:[{x:770,y:480},{x:905,y:480}], printer:{x:840,y:550},
+  elevFront:{x:95,y:505}, elevIn:{x:95,y:585},
+  water:{x:690,y:322},
+};
+const LOUNGE = [SPOT.sofa[0], SPOT.sofa[1], SPOT.bean, SPOT.tv];
+
+const map = $("map");
+const U = (x,y,w,h) => `left:${x/10}%;top:${y/6.4}%;` + (w!=null ? `width:${w/10}%;height:${h/6.4}%;` : "");
+function add(cls, x,y,w,h, html="", z){
+  const d = document.createElement("div"); d.className = cls; d.style.cssText = U(x,y,w,h) + `z-index:${z ?? Math.round(y+h)}`;
+  d.innerHTML = html; map.appendChild(d); return d;
+}
+for (const [k,r] of Object.entries(ROOMS)){
+  add(`room r-${k}`, r.x,r.y,r.w,r.h, `<span class="rl">${r.name}</span>`, 0);
+  add("door", r.door-32, isTop(r) ? r.y+r.h-8 : r.y-2, 64, 10, "", 1);
+}
+add("corr-label", 360, 306, null, null, "복 도", 1).style.zIndex = 1;
+// meeting room
+add("f table", 70,140,180,48);
+add("f wb", 40,34,240,66, `<b id="wbT">오늘의 업무</b><ul id="wbL"><li>업무를 기다리는 중</li></ul>`, 5);
+// desks
+const NAMES = {rakko:"랏코 팀장", chiikawa:"치이카와", hachiware:"하치와레", usagi:"우사기"};
+for (const [id,s] of Object.entries(SPOT.desk)){
+  add("f desk", s.x-58, s.y-6, 116, 52, `<div class="mon" id="mon-${id}"></div><div class="np" id="np-${id}">${NAMES[id]} · 휴식</div>`).id = "desk-"+id;
+}
+// pantry
+add("f machine", 738,48,54,62); add("f fridge", 885,36,62,92); add("f counter", 800,48,70,40);
+add("f table", 780,252,120,30);
+// elevator
+const elev = add("f elev", 52,560,86,58, `<i class="l"></i><i class="r"></i>`, 600);
+const ind = add("f ind", 78,532,34,20, "1F", 600);
+// restroom
+add("f stall", 182,522,62,96, "", 520); add("f stall", 260,522,62,96, "", 520);
+add("f sign", 230,372,40,24, "WC", 380);
+// lounge
+add("f sofa", 380,560,150,46); add("f bean", 360,470,52,36,"",440);
+add("f tv", 595,372,74,46, "♪ ON AIR"); add("f plant", 662,568,30,40);
+// archive
+add("f shelf", 728,372,92,64); add("f shelf", 862,372,92,64); add("f printer", 806,572,70,34);
+// corridor props
+add("f water", 676,296,28,22, "", 296); add("f plant", 952,298,24,26, "", 296);
+
+const roomAt = p => { for (const [k,r] of Object.entries(ROOMS)) if (p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h) return k; return null; };
+function route(from, to){
+  const a = roomAt(from), b = roomAt(to), pts = [];
+  if (a && a === b) return [to];
+  if (a){ const r = ROOMS[a]; pts.push({x:r.door,y:inner(r)}, {x:r.door,y:CY}); } else pts.push({x:from.x,y:CY});
+  if (b){ const r = ROOMS[b]; pts.push({x:r.door,y:CY}, {x:r.door,y:inner(r)}); }
+  pts.push(to); return pts;
+}
+
+/* ---------- crew & movement ---------- */
+const CREW = ["rakko","chiikawa","hachiware","usagi"].map(id => {
+  const s = SPOT.desk[id];
+  const c = {id, name:NAMES[id].replace(" 팀장",""), x:s.x, y:s.y, path:[], resolve:null, job:null, away:false, bubT:0};
+  c.el = document.createElement("div"); c.el.className = "mate";
+  c.el.innerHTML = `<div class="body">${SVG[id]}</div><span class="nm">${c.name}</span>`;
+  c.bub = document.createElement("div"); c.bub.className = "bub";
+  map.append(c.el, c.bub); return c;
+});
+const M = Object.fromEntries(CREW.map(c => [c.id, c]));
+function place(c){
+  c.el.style.left = c.bub.style.left = c.x/10 + "%";
+  c.el.style.top = c.bub.style.top = c.y/6.4 + "%";
+  c.el.style.zIndex = Math.round(c.y);
+}
+CREW.forEach(place);
+const SPEED = REDUCED ? 5000 : 170;
+let lastT = performance.now();
+function frame(t){
+  const dt = Math.min(.05, (t - lastT) / 1000); lastT = t;
+  for (const c of CREW){
+    if (!c.path.length) continue;
+    const g = c.path[0], dx = g.x - c.x, dy = g.y - c.y, d = Math.hypot(dx, dy), step = SPEED * dt;
+    if (Math.abs(dx) > 1) c.el.classList.toggle("left", dx < 0);
+    if (d <= step){ c.x = g.x; c.y = g.y; c.path.shift(); }
+    else { c.x += dx/d*step; c.y += dy/d*step; }
+    if (!c.path.length){ c.el.classList.remove("walk"); const r = c.resolve; c.resolve = null; r && r(true); }
+    place(c);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+function walk(c, to){
+  if (c.resolve){ const r = c.resolve; c.resolve = null; r(false); }
+  c.path = route({x:c.x, y:c.y}, to);
+  c.el.classList.add("walk"); c.el.classList.remove("work");
+  return new Promise(res => { c.resolve = res; });
+}
+function say(c, text, ms=2600){
+  c.bub.textContent = text; c.bub.classList.toggle("show", !!text);
+  clearTimeout(c.bubT); if (text && ms) c.bubT = setTimeout(() => c.bub.classList.remove("show"), ms);
+}
+function setWork(c, on, label){
+  c.el.classList.toggle("work", !!on);
+  $("desk-"+c.id).classList.toggle("on", !!on);
+  $("np-"+c.id).textContent = `${NAMES[c.id]} · ${label || "휴식"}`;
+}
+function screen(id, text){ const lines = text.split("\n").filter(Boolean); $("mon-"+id).textContent = lines.slice(-5).join("\n").slice(-200); }
+const claim = c => { const tag = {}; c.job = tag; return () => c.job === tag; };
+
+/* elevator */
+const openElev = () => elev.classList.add("open");
+const closeElev = () => elev.classList.remove("open");
+function summon(c){
+  if (!c.away) return;
+  c.away = false; c.el.classList.remove("gone"); ind.textContent = "1F"; openElev(); setTimeout(closeElev, 1800);
+}
+async function ride(c, ok){
+  if (!await walk(c, SPOT.elevFront) || !ok()) return;
+  openElev(); await sleep(700); if (!ok()) return;
+  if (!await walk(c, SPOT.elevIn) || !ok()) return;
+  c.away = true; c.el.classList.add("gone"); await sleep(500); closeElev();
+  for (const f of ["2F","3F","4F","5F","4F","3F","2F","1F"]){ await sleep(700); if (!ok() || !c.away) return; ind.textContent = f; }
+  openElev(); c.away = false; c.el.classList.remove("gone"); await sleep(500);
+  if (!ok()) return; say(c, rand(["다녀왔어~","옥상 바람 좋다","…!"]), 2000);
+  await walk(c, SPOT.elevFront); closeElev();
+}
+
+/* idle wandering (no tokens: all local) */
+const PLACES = [
+  {w:3, at:()=>SPOT.coffee, lines:["커피 한 잔~","따끈따끈…","카페인 충전!"]},
+  {w:2, at:()=>SPOT.fridge, lines:["간식 있나…?","푸딩 발견!","냉장고 털기~"]},
+  {w:2, at:()=>rand(SPOT.snack), lines:["냠냠","과자 맛있다…"]},
+  {w:2, at:()=>rand(SPOT.wc), lines:["잠깐 화장실…","손 씻기 중"]},
+  {w:3, at:()=>rand(SPOT.sofa), lines:["소파 최고…","잠깐 쉬자~","(꾸벅꾸벅)"]},
+  {w:2, at:()=>SPOT.tv, lines:["이 노래 좋다~","♪~"]},
+  {w:1, at:()=>SPOT.bean, lines:["푹신…","으아 녹는다"]},
+  {w:2, at:()=>rand(SPOT.shelf), lines:["자료 찾는 중…","이 책 재밌겠다"]},
+  {w:1, at:()=>SPOT.printer, lines:["출력 중…","종이 걸렸다…!"]},
+  {w:1, at:()=>SPOT.water, lines:["물 한 잔~","꿀꺽꿀꺽"]},
+  {w:1, elevator:true},
+];
+const DESK_LINES = {rakko:["오늘도 평화롭군","서류 정리 끝","보고서 확인 중"], chiikawa:["…!","와아…","할 수 있어…!"], hachiware:["오늘 날씨 좋다~","뭐든 해보는 거야!","노래 부를까~?"], usagi:["푸루루루루","하아?","야하!","우라!"]};
+const USAGI_LINES = ["우라!","야하!","푸루루…","하아?"];
+function pickPlace(){ const tot = PLACES.reduce((s,p)=>s+p.w,0); let r = Math.random()*tot; for (const p of PLACES){ r -= p.w; if (r <= 0) return p; } return PLACES[0]; }
+async function wander(c){
+  const ok = claim(c), p = pickPlace();
+  if (p.elevator){ say(c, "잠깐 다녀올게~", 1800); await ride(c, ok); }
+  else {
+    if (!await walk(c, p.at()) || !ok()) return;
+    say(c, c.id === "usagi" && Math.random() < .5 ? rand(USAGI_LINES) : rand(p.lines), 2600);
+    await sleep(3000 + Math.random()*3500); if (!ok()) return;
+  }
+  if (!ok()) return;
+  await walk(c, SPOT.desk[c.id]); if (ok()) c.job = null;
+}
+setInterval(() => {
+  if (busy || document.hidden) return;
+  const idle = CREW.filter(c => !c.job);
+  if (!idle.length) return;
+  if (CREW.length - idle.length < 2 && Math.random() < .7) wander(rand(idle));
+  else { const c = rand(idle); say(c, rand(DESK_LINES[c.id]), 2200); }
+}, 3200);
+
+/* clock */
+const tick = () => { $("clock").textContent = new Date().toTimeString().slice(0,5); };
+tick(); setInterval(tick, 15000);
+
+/* ---------- log ---------- */
+function log(who, msg){
+  const d = document.createElement("div");
+  d.innerHTML = `<time>${new Date().toTimeString().slice(0,5)}</time><b class="who-${who}">${M[who] ? M[who].name : "시스템"}</b><span></span>`;
+  d.lastChild.textContent = msg; $("log").prepend(d);
+  while ($("log").children.length > 60) $("log").lastChild.remove();
+}
+
+/* ---------- tiny markdown ---------- */
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const inl = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+function md(src){
+  let out = "", list = null;
+  const close = () => { if (list){ out += `</${list}>`; list = null; } };
+  for (const raw of src.split("\n")){
+    const l = raw.trimEnd(); let m;
+    if (!l.trim()){ close(); continue; }
+    if ((m = l.match(/^#{1,2}\s+(.*)/))){ close(); out += `<h3>${inl(m[1])}</h3>`; continue; }
+    if ((m = l.match(/^#{3,6}\s+(.*)/))){ close(); out += `<h4>${inl(m[1])}</h4>`; continue; }
+    if ((m = l.match(/^>\s?(.*)/))){ close(); out += `<p class="note">${inl(m[1])}</p>`; continue; }
+    if ((m = l.match(/^\s*[-*•]\s+(.*)/))){ if (list !== "ul"){ close(); out += "<ul>"; list = "ul"; } out += `<li>${inl(m[1])}</li>`; continue; }
+    if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))){ if (list !== "ol"){ close(); out += "<ol>"; list = "ol"; } out += `<li>${inl(m[1])}</li>`; continue; }
+    close(); out += `<p>${inl(l)}</p>`;
+  }
+  close(); return out;
+}
+
+/* ---------- one Claude call per task, parsed while it streams ---------- */
+function parse(text){
+  const r = {title:"", outline:[], body:"", score:0, comment:"", phase:0};
+  const t = text.match(/@제목:\s*(.+)/); if (t){ r.title = t[1].trim(); r.phase = 1; }
+  const iO = text.indexOf("@구성"), iB = text.indexOf("@결과물"), iR = text.indexOf("@검토");
+  if (iO >= 0){ r.phase = 1; r.outline = text.slice(iO+3, iB >= 0 ? iB : undefined).split("\n").map(s => s.replace(/^\s*[-*•\d.)]+\s*/, "").trim()).filter(Boolean); }
+  if (iB >= 0){ r.phase = 2; r.body = text.slice(iB+4, iR >= 0 ? iR : undefined).trim(); }
+  if (iR >= 0){ r.phase = 3; const seg = text.slice(iR+3);
+    const s = seg.match(/점수\s*[:：]\s*(\d)/); if (s) r.score = Math.max(1, Math.min(5, +s[1]));
+    const c = seg.match(/한줄평\s*[:：]\s*(.+)/); if (c) r.comment = c[1].trim(); }
+  return r;
+}
+const prompt = task => `너는 작은 사무실 팀이야. 아래 업무를 실제로 끝까지 해내고, 정확히 이 형식으로만 답해.
+
+업무: """${task.slice(0,4000)}"""
+
+@제목: (업무를 14자 이내로 줄인 이름)
+@구성
+- (결과물의 구성 또는 작업 단계, 3~5줄, 각 25자 이내)
+@결과물
+(업무를 완수한 실제 결과물. 한국어. 인사말이나 서론 없이 바로 본문. 마크다운은 ##, ###, -, 1., **굵게** 만 사용. 업무 크기에 맞게 충실하게, 보통 600~1500자.)
+@검토
+점수: (1~5 정수, 결과물이 업무 요구를 얼마나 채우는지)
+한줄평: (40자 이내, 보완하면 좋을 점 또는 칭찬)`;
+
+function demoAnswer(task){
+  const one = task.replace(/\s+/g, " ").trim();
+  const short = one.length > 14 ? one.slice(0,14) + "…" : one;
+  return `@제목: ${short}
+@구성
+- 요청 내용 정리
+- 진행 순서 세우기
+- 바로 쓸 체크리스트
+@결과물
+## ${short}
+
+> 데모 모드라서 정해진 예시 형식으로 보여주고 있어요. claude.ai에서 열면 하치와레가 실제 결과물을 써요.
+
+### 요청 내용
+- ${one.slice(0,140)}
+
+### 진행 순서
+1. 원하는 결과물의 모양과 분량을 정해요.
+2. 필요한 자료를 자료실에서 모아요.
+3. 초안을 쓰고 우사기가 검토해요.
+4. 팀장이 최종본을 전달해요.
+
+### 체크리스트
+- **목적**: 이 결과물을 누가, 어디에 쓰나요?
+- **마감**: 언제까지 필요한가요?
+- **형식**: 글, 표, 목록 중 무엇이 좋을까요?
+@검토
+점수: 3
+한줄평: 연결되면 진짜로 일할 수 있어! 야하!`;
+}
+
+/* ---------- state ---------- */
+const KEY = "chiikawa-office-v2";
+const EXAMPLE = {id:"ex1", task:"이번 주 팀 회의록을 세 줄로 요약하고 할 일 목록 만들어줘", title:"주간 회의록 요약", example:true, status:"done",
+  body:"## 주간 회의 요약\n\n1. 신규 기능 출시일을 11월 3일로 확정했어요.\n2. 고객 문의 응답 시간을 하루 안으로 줄이기로 했어요.\n3. 다음 분기 예산안은 금요일까지 초안을 공유해요.\n\n### 할 일\n- **치이카와**: 출시 공지 초안 작성 (수)\n- **하치와레**: 문의 응답 템플릿 정리 (목)\n- **우사기**: 예산안 숫자 검토 (금)\n\n### 다음 회의 안건\n- 출시 전 최종 점검 목록",
+  score:4, comment:"할 일에 마감일까지 있어서 좋아! 야하!", at:Date.now()};
+let tasks = [];
+try { tasks = JSON.parse(localStorage.getItem(KEY) || "null") || []; } catch(e) {}
+if (!tasks.length) tasks = [EXAMPLE];
+tasks.forEach(t => { if (t.status === "working"){ t.status = "failed"; t.error = "새로고침으로 중단됐어요"; } });
+let selected = tasks.slice().reverse().find(t => t.status === "done")?.id || null;
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(tasks.slice(-30))); } catch(e) {} };
+
+/* ---------- Claude connection ---------- */
+let sample = null, live = false, busy = false, ctl = null;
+function setMode(on, why){
+  live = on; $("mode").className = "mode" + (on ? " live" : "");
+  $("mode").innerHTML = on ? "<b>실제 처리 모드</b> · 업무마다 Claude를 한 번 불러요" : `<b>데모 모드</b> · ${why || "Claude 연결 없이 흉내만 내요"}`;
+}
+setMode(false, "연결 확인 중…");
+(async () => {
+  try { sample = window.claude?.use ? await window.claude.use("sample") : null; } catch(e) { sample = null; }
+  sample ? setMode(true) : setMode(false);
+})();
+
+/* ---------- rendering ---------- */
+function renderBoard(){
+  const q = tasks.filter(t => t.status === "queued"), w = tasks.filter(t => t.status === "working"), d = tasks.filter(t => t.status === "done" || t.status === "failed").slice().reverse();
+  const card = t => `<button class="card ${t.id===selected?"sel":""} ${t.status==="failed"?"fail":""}" data-id="${t.id}"><span class="t">${esc(t.title||t.task)}${t.example?'<span class="ex">예시</span>':""}</span><span class="s">${t.status==="failed"?"중단: "+esc(t.error||""):t.status==="done"?"★".repeat(t.score||0):t.status==="working"?"처리 중…":"순서 기다리는 중"}</span></button>`;
+  $("colQ").innerHTML = q.map(card).join(""); $("colW").innerHTML = w.map(card).join(""); $("colD").innerHTML = d.map(card).join("");
+  $("nQ").textContent = q.length; $("nW").textContent = w.length; $("nD").textContent = d.length;
+}
+function renderResult(t, streaming){
+  if (!t) return;
+  $("rTitle").textContent = t.title || "작성 중…";
+  $("rDoc").innerHTML = t.body ? md(t.body) : `<p class="empty">${t.status==="failed" ? esc(t.error||"중단됐어요") : "하치와레가 쓰기 시작하면 여기에 나와요."}</p>`;
+  if (streaming) $("rDoc").scrollTop = $("rDoc").scrollHeight;
+  const rv = $("rReview");
+  if (t.score && t.status === "done"){ rv.hidden = false; rv.innerHTML = `<div class="mini">${SVG.usagi}</div><div><span class="stars">${"★".repeat(t.score)}${"☆".repeat(5-t.score)}</span><p></p></div>`; rv.querySelector("p").textContent = "우사기: " + (t.comment || "야하!"); }
+  else rv.hidden = true;
+  $("stamp").classList.toggle("on", t.status === "done");
+}
+function wb(title, items){
+  $("wbT").textContent = title;
+  $("wbL").innerHTML = (items.length ? items.slice(0,5) : ["구성 짜는 중…"]).map(s => `<li>${esc(s)}</li>`).join("");
+}
+const progress = (p, label) => { $("bar").style.width = p + "%"; if (label != null) $("now").textContent = label; };
+
+document.addEventListener("click", e => {
+  const c = e.target.closest(".card"); if (!c) return;
+  const t = tasks.find(x => x.id === c.dataset.id); if (!t) return;
+  selected = t.id; renderBoard(); renderResult(t);
+});
+$("copy").onclick = async () => {
+  const t = tasks.find(x => x.id === selected); if (!t?.body) return;
+  try { await navigator.clipboard.writeText(t.body); $("copy").textContent = "복사됨"; }
+  catch(e){ const r = document.createRange(); r.selectNodeContents($("rDoc")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $("copy").textContent = "선택됨"; }
+  setTimeout(() => $("copy").textContent = "복사", 1500);
+};
+
+/* ---------- the work pipeline ---------- */
+function gate(){ let r; const p = new Promise(x => r = x); return {p, r}; }
+function newJob(){ return {p1:gate(), p2:gate(), p3:gate(), done:gate(), failed:false, last:null}; }
+function failJob(j){ j.failed = true; [j.p1,j.p2,j.p3,j.done].forEach(g => g.r(false)); }
+
+function onUpdate(t, r, job){
+  if (r.title && t.title !== r.title){ t.title = r.title; progress(20, r.title); $("rTitle").textContent = r.title; }
+  if (r.phase >= 1){ job.p1.r(true); wb(t.title || "새 업무", r.outline); }
+  if (r.phase >= 2){ job.p2.r(true); t.outline = r.outline; t.body = r.body; screen("hachiware", r.body); renderResult(t, true); if (r.phase === 2) progress(Math.min(88, 40 + r.body.length/30)); }
+  if (r.phase >= 3){ job.p3.r(true); screen("usagi", `점수 ${r.score || "?"}\n${r.comment}`); progress(92); }
+}
+async function streamWork(t, job){
+  const apply = text => { const r = parse(text); job.last = r; onUpdate(t, r, job); };
+  ctl = new AbortController(); const signal = ctl.signal;
+  if (live && sample){
+    const { text } = await sample(prompt(t.task), { signal, cache:false, onText:({text}) => apply(text) });
+    apply(text);
+  } else {
+    const full = demoAnswer(t.task); let pB = false, pR = false;
+    await sleep(2500);
+    for (let i = 0; i <= full.length + 4; i += 4){
+      if (signal.aborted) throw {code:"cancelled"};
+      const s = full.slice(0, i); apply(s); await sleep(45);
+      if (!pB && s.includes("@결과물")){ pB = true; await sleep(3500); }
+      if (!pR && s.includes("@검토")){ pR = true; await sleep(2500); }
+    }
+    apply(full);
+  }
+  return job.last;
+}
+
+async function run(t){
+  busy = true; t.status = "working"; selected = t.id; save(); renderBoard(); renderResult(t);
+  $("stop").hidden = false;
+  const job = newJob(), {rakko:R, chiikawa:C, hachiware:H, usagi:S} = M;
+  CREW.forEach(c => { summon(c); claim(c); setWork(c, false, "회의"); screen(c.id, ""); });
+  progress(6, t.task.slice(0,40)); wb(t.task.slice(0,24), ["킥오프 회의 준비 중"]);
+  screen("rakko", "[업무지시서]\n" + t.task);
+  log("rakko", `업무 접수: ${t.task.slice(0,40)}`);
+  say(R, "업무 들어왔어! 회의실로 모여~", 3000);
+
+  const streamP = streamWork(t, job).then(r => { job.done.r(true); return r; }, e => { failJob(job); throw e; });
+  streamP.catch(() => {});
+
+  const scripts = (async () => {
+    await Promise.all(CREW.map((c,i) => walk(c, SPOT.meet[i])));
+    if (job.failed) return;
+    log("rakko", "회의실에서 킥오프 회의");
+    say(R, "이번 업무는 이거야.", 2400); await sleep(1300);
+    say(C, "…!!", 1500); say(S, "우라!", 1500); await sleep(700); say(H, "좋아, 해보자~", 1800); await sleep(1300);
+    if (job.failed) return;
+    await Promise.all([
+      (async () => { say(R, "난 자리에서 지켜볼게.", 2000); await walk(R, SPOT.desk.rakko); if (!job.failed) setWork(R, true, "지켜보는 중"); })(),
+      (async () => {
+        say(C, "자료 찾아올게…!", 2000); await walk(C, SPOT.shelf[0]); if (job.failed) return;
+        setWork(C, true, "자료 조사 중"); log("chiikawa", "자료실에서 구성 짜는 중");
+        if (!await job.p2.p) return;
+        await sleep(600); say(C, "구성 완성…!", 1800); log("chiikawa", `구성 ${(job.last?.outline||[]).length}개 완성`);
+        await walk(C, {x:SPOT.desk.hachiware.x+64, y:SPOT.desk.hachiware.y+6}); if (job.failed) return;
+        say(C, "여기… 구성이야…!", 2000); await sleep(1000); say(H, "고마워 치이카와~!", 2000); await sleep(900);
+        screen("chiikawa", (job.last?.outline||[]).map(s => "• " + s).join("\n"));
+        await walk(C, SPOT.desk.chiikawa); if (!job.failed) setWork(C, false, "완료!");
+      })(),
+      (async () => {
+        await walk(H, SPOT.desk.hachiware); if (job.failed) return;
+        say(H, "자리 도착~ 구성 기다리는 중", 2200); setWork(H, false, "대기");
+        if (!await job.p2.p) return;
+        await sleep(2200); if (job.failed) return;
+        setWork(H, true, "작성 중"); say(H, "타닥타닥…!", 2000); log("hachiware", "결과물 작성 시작");
+        if (!await job.p3.p) return;
+        setWork(H, false, "완료!"); say(H, "다 썼다! 우사기 봐줘~", 2200); log("hachiware", `작성 완료 (${(t.body||"").length}자)`);
+      })(),
+      (async () => {
+        say(S, "푸루루…", 1500); await walk(S, SPOT.coffee); if (job.failed) return;
+        say(S, "커피 충전!", 2000); setWork(S, false, "대기");
+        if (!await job.p3.p) return;
+        await walk(S, SPOT.desk.usagi); if (job.failed) return;
+        setWork(S, true, "검토 중"); say(S, "우라!", 1500); log("usagi", "검토 중");
+        if (!await job.done.p) return; await sleep(1400);
+      })(),
+    ]);
+  })();
+
+  try {
+    const r = await streamP; await scripts;
+    if (!r?.body) throw {code:"format"};
+    t.body = r.body; t.outline = r.outline; t.title = t.title || r.title || t.task.slice(0,14);
+    t.score = r.score || 4; t.comment = r.comment || "야하!"; t.status = "done";
+    setWork(S, false, "승인!"); say(S, "야하!", 2400); log("usagi", `승인 · ★${t.score} · ${t.comment}`);
+    progress(100, t.title); save(); renderBoard(); renderResult(t);
+    await sleep(900); setWork(R, false, "전달 완료"); say(R, "결과물 나왔어. 확인해 봐!", 2600); log("rakko", "결과물 전달 완료");
+    await sleep(1800);
+    if (!tasks.some(x => x.status === "queued")){
+      say(R, "다들 수고했어! 휴게실에서 쉬자~", 2400);
+      await Promise.all(CREW.map((c,i) => walk(c, LOUNGE[i])));
+      CREW.forEach(c => c.el.classList.add("cheer"));
+      say(C, "와아…!", 2000); say(H, "수고했어~", 2000); await sleep(600); say(S, "야하!", 2000);
+      await sleep(2600); CREW.forEach(c => c.el.classList.remove("cheer"));
+    }
+  } catch(e) {
+    failJob(job);
+    const code = e?.code; t.status = "failed";
+    if (["not_granted","sampling_disabled","not_declared","capability_disabled"].includes(code)){ setMode(false, "Claude 사용이 허용되지 않았어요"); sample = null; t.error = "Claude 사용이 허용되지 않았어요"; }
+    else if (code === "cancelled") t.error = "멈춤";
+    else if (code === "rate_limited") t.error = "사용량이 많아요. 잠시 뒤에 다시 지시해 주세요";
+    else if (code === "refused"){ t.error = "이 업무는 처리할 수 없대요"; t.body = ""; }
+    else if (code === "format"){ t.error = "형식이 달라서 정리하지 못했어요"; }
+    else t.error = "연결이 끊겼어요. 다시 지시해 주세요";
+    if (e?.text && !t.body) t.body = parse(e.text).body || "";
+    say(C, code === "cancelled" ? "…멈췄다" : "…으앙", 2200); say(R, "자리로 돌아가자.", 2200);
+    log("rakko", `중단: ${t.error}`); progress(0, "대기 중이에요");
+    save(); renderBoard(); renderResult(t);
+    await Promise.all(CREW.map(c => walk(c, SPOT.desk[c.id])));
+  }
+  CREW.forEach(c => { setWork(c, false, ""); c.job = null; });
+  ctl = null; busy = false; $("stop").hidden = true; save(); renderBoard();
+  pump();
+}
+function pump(){ if (busy) return; const next = tasks.find(t => t.status === "queued"); if (next) run(next); }
+
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = $("task").value.trim(); if (!v) return;
+  tasks.push({id:"t"+Date.now().toString(36), task:v, status:"queued", at:Date.now()});
+  $("task").value = ""; save(); renderBoard();
+  if (busy){ log("rakko", `대기열에 추가: ${v.slice(0,30)}`); say(M.rakko, "순서대로 할게.", 1800); }
+  pump();
+});
+$("task").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("form").requestSubmit(); });
+$("stop").onclick = () => ctl?.abort();
+
+const SUG = ["다음 주 제주도 2박 3일 여행 일정 짜줘","신입사원 환영 메일 써줘","카페 창업 체크리스트 만들어줘","블로그 글 제목 5개 추천해줘"];
+$("chips").innerHTML = SUG.map(s => `<button type="button" class="chip">${s}</button>`).join("");
+$("chips").addEventListener("click", e => { const c = e.target.closest(".chip"); if (c){ $("task").value = c.textContent; $("task").focus(); } });
+
+renderBoard();
+const sel = tasks.find(t => t.id === selected); if (sel) renderResult(sel);
+log("rakko", "출근 완료. 업무를 기다리는 중");
+setTimeout(() => say(M.hachiware, "오늘도 힘내자~!", 2600), 600);
+setTimeout(() => { if (!busy && !M.usagi.job) wander(M.usagi); }, 1800);
+pump();
+})();
+</script>
+
+</body></html>
