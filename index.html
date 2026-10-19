@@ -127,6 +127,12 @@ textarea:focus-visible,button:focus-visible{outline:3px solid var(--blue);outlin
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .chip{font:inherit;font-size:.8rem;border:1px dashed var(--desk-edge);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;cursor:pointer}
 .chip:hover{color:var(--ink);border-color:var(--ink)}
+.byok{margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;font-size:.85rem}
+.byok summary{cursor:pointer;font-weight:700}
+.byok input,.byok select{font:inherit;font-size:.85rem;border:2px solid var(--line);border-radius:10px;padding:5px 9px;background:var(--bg);color:var(--ink);min-width:0}
+.byok input{flex:1 1 220px}
+.byok p{margin:6px 0;color:var(--muted);font-size:.78rem}
+.byok a{color:var(--blue)}
 .hint{font-size:.78rem;color:var(--muted);margin:0 0 6px;display:block}
 .result{position:relative;min-height:240px}
 .result .meta{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
@@ -186,6 +192,22 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
           </div>
           <div class="chips" id="chips"></div>
         </form>
+        <details class="byok" id="byok" hidden>
+          <summary>Claude 연결하기 (내 API 키)</summary>
+          <p>GitHub에서 열면 기본은 데모 모드예요. 내 Anthropic API 키를 넣으면 실제로 일해요. 키는 이 브라우저에만 저장되고 Anthropic에만 보내져요. 사용료는 키 주인 계정으로 나가요. 키는 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic 콘솔</a>에서 만들 수 있어요.</p>
+          <div class="row">
+            <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" aria-label="Anthropic API 키">
+            <select id="apiModel" aria-label="모델">
+              <option value="claude-opus-5-5">Opus 5.5 (기본, 가장 똑똑해요)</option>
+              <option value="claude-sonnet-5-5">Sonnet 5.5 (중간)</option>
+              <option value="claude-haiku-5-5">Haiku 5.5 (가장 저렴해요)</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn ghost" type="button" id="keySave" style="font-size:.95rem;padding:3px 12px">저장하고 연결</button>
+            <button class="btn ghost" type="button" id="keyDel" style="font-size:.95rem;padding:3px 12px">키 지우기</button>
+          </div>
+        </details>
       </section>
       <section class="panel">
         <h2>업무 보드</h2>
@@ -231,6 +253,13 @@ const SVG = {
 };
 
 // 원작 이미지로 교체 (img 폴더). 이미지를 못 불러오면 위 SVG를 그대로 써요.
+const EXTRA = {
+  momonga:{name:"모몽가", home:{x:560,y:520}, lines:["나 귀엽지?","칭찬해줘!","나도 할래!","헤헤"]},
+  kurimanju:{name:"쿠리만쥬", home:{x:840,y:200}, lines:["하아…","캬~","한 잔 더…"]},
+  shisa:{name:"시사", home:{x:760,y:560}, lines:["열심히 할게요~!","배우는 중이에요!","와아~"]},
+  kani:{name:"카니", home:{x:915,y:575}, lines:["(독서 중)","…?","이 책 재밌다"]},
+};
+for (const k of Object.keys(EXTRA)) SVG[k] = "";
 for (const k of Object.keys(SVG)){ const svg = SVG[k]; SVG[k] = `<img src="img/${k}.png" alt="" draggable="false" onerror="this.outerHTML=this.dataset.f" data-f='${svg.replace(/'/g,"&#39;")}'>`; }
 
 /* ---------- floor plan ---------- */
@@ -255,6 +284,8 @@ const SPOT = {
   shelf:[{x:770,y:480},{x:905,y:480}], printer:{x:840,y:550},
   elevFront:{x:95,y:505}, elevIn:{x:95,y:585},
   water:{x:690,y:322},
+  meetX:[{x:45,y:170},{x:275,y:170},{x:120,y:265},{x:200,y:265}],
+  loungeX:[{x:560,y:470},{x:600,y:575},{x:450,y:480},{x:650,y:540}],
 };
 const LOUNGE = [SPOT.sofa[0], SPOT.sofa[1], SPOT.bean, SPOT.tv];
 
@@ -304,26 +335,28 @@ function route(from, to){
 }
 
 /* ---------- crew & movement ---------- */
-const CREW = ["rakko","chiikawa","hachiware","usagi"].map(id => {
-  const s = SPOT.desk[id];
-  const c = {id, name:NAMES[id].replace(" 팀장",""), x:s.x, y:s.y, path:[], resolve:null, job:null, away:false, bubT:0};
+Object.entries(EXTRA).forEach(([k,v]) => NAMES[k] = v.name);
+const ALL = ["rakko","chiikawa","hachiware","usagi",...Object.keys(EXTRA)].map(id => {
+  const s = SPOT.desk[id] || EXTRA[id].home;
+  const c = {id, name:NAMES[id].replace(" 팀장",""), x:s.x, y:s.y, home:s, path:[], resolve:null, job:null, away:false, bubT:0};
   c.el = document.createElement("div"); c.el.className = "mate";
   c.el.innerHTML = `<div class="body">${SVG[id]}</div><span class="nm">${c.name}</span>`;
   c.bub = document.createElement("div"); c.bub.className = "bub";
   map.append(c.el, c.bub); return c;
 });
-const M = Object.fromEntries(CREW.map(c => [c.id, c]));
+const CREW = ALL.slice(0,4), EXTRAS = ALL.slice(4);
+const M = Object.fromEntries(ALL.map(c => [c.id, c]));
 function place(c){
   c.el.style.left = c.bub.style.left = c.x/10 + "%";
   c.el.style.top = c.bub.style.top = c.y/6.4 + "%";
   c.el.style.zIndex = Math.round(c.y);
 }
-CREW.forEach(place);
+ALL.forEach(place);
 const SPEED = REDUCED ? 5000 : 170;
 let lastT = performance.now();
 function frame(t){
   const dt = Math.min(.05, (t - lastT) / 1000); lastT = t;
-  for (const c of CREW){
+  for (const c of ALL){
     if (!c.path.length) continue;
     const g = c.path[0], dx = g.x - c.x, dy = g.y - c.y, d = Math.hypot(dx, dy), step = SPEED * dt;
     if (Math.abs(dx) > 1) c.el.classList.toggle("left", dx < 0);
@@ -393,11 +426,11 @@ async function wander(c){
   if (p.elevator){ say(c, "잠깐 다녀올게~", 1800); await ride(c, ok); }
   else {
     if (!await walk(c, p.at()) || !ok()) return;
-    say(c, c.id === "usagi" && Math.random() < .5 ? rand(USAGI_LINES) : rand(p.lines), 2600);
+    say(c, c.id === "usagi" && Math.random() < .5 ? rand(USAGI_LINES) : EXTRA[c.id] && Math.random() < .5 ? rand(EXTRA[c.id].lines) : rand(p.lines), 2600);
     await sleep(3000 + Math.random()*3500); if (!ok()) return;
   }
   if (!ok()) return;
-  await walk(c, SPOT.desk[c.id]); if (ok()) c.job = null;
+  await walk(c, c.home); if (ok()) c.job = null;
 }
 setInterval(() => {
   if (busy || document.hidden) return;
@@ -406,6 +439,14 @@ setInterval(() => {
   if (CREW.length - idle.length < 2 && Math.random() < .7) wander(rand(idle));
   else { const c = rand(idle); say(c, rand(DESK_LINES[c.id]), 2200); }
 }, 3200);
+// 친구들(모몽가·쿠리만쥬·시사·카니)은 업무와 상관없이 사무실을 돌아다녀요
+setInterval(() => {
+  if (document.hidden) return;
+  const idle = EXTRAS.filter(c => !c.job);
+  if (!idle.length) return;
+  const c = rand(idle);
+  if (Math.random() < .45 && !c.away) wander(c); else say(c, rand(EXTRA[c.id].lines), 2200);
+}, 4100);
 
 /* clock */
 const tick = () => { $("clock").textContent = new Date().toTimeString().slice(0,5); };
@@ -474,7 +515,7 @@ function demoAnswer(task){
 @결과물
 ## ${short}
 
-> 데모 모드라서 정해진 예시 형식으로 보여주고 있어요. claude.ai에서 열면 하치와레가 실제 결과물을 써요.
+> 데모 모드라서 정해진 예시 형식으로 보여주고 있어요. 'Claude 연결하기'에 API 키를 넣거나 claude.ai에서 열면 하치와레가 실제 결과물을 써요.
 
 ### 요청 내용
 - ${one.slice(0,140)}
@@ -491,7 +532,7 @@ function demoAnswer(task){
 - **형식**: 글, 표, 목록 중 무엇이 좋을까요?
 @검토
 점수: 3
-한줄평: 연결되면 진짜로 일할 수 있어! 야하!`;
+한줄평: 키를 연결하면 진짜로 일할 수 있어! 야하!`;
 }
 
 /* ---------- state ---------- */
@@ -510,13 +551,55 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(tasks.slice(
 let sample = null, live = false, busy = false, ctl = null;
 function setMode(on, why){
   live = on; $("mode").className = "mode" + (on ? " live" : "");
-  $("mode").innerHTML = on ? "<b>실제 처리 모드</b> · 업무마다 Claude를 한 번 불러요" : `<b>데모 모드</b> · ${why || "Claude 연결 없이 흉내만 내요"}`;
+  $("mode").innerHTML = on ? `<b>실제 처리 모드</b> · ${why || "업무마다 Claude를 한 번 불러요"}` : `<b>데모 모드</b> · ${why || "Claude 연결 없이 흉내만 내요"}`;
 }
 setMode(false, "연결 확인 중…");
+
+/* GitHub 등 claude.ai 밖에서는 각자 자기 API 키로 연결해요 (키는 이 브라우저 localStorage에만 저장) */
+const KEY_API = "chiikawa-office-apikey", KEY_MODEL = "chiikawa-office-model";
+const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch(e) { return ""; } };
+const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch(e) {} };
+let apiKey = lsGet(KEY_API), apiModel = lsGet(KEY_MODEL) || "claude-opus-5-5", sdk = null;
+const MODEL_NAME = {"claude-opus-5-5":"Opus 5.5","claude-sonnet-5-5":"Sonnet 5.5","claude-haiku-5-5":"Haiku 5.5"};
+const keyMode = () => apiKey ? setMode(true, `내 API 키 · ${MODEL_NAME[apiModel] || apiModel}`) : setMode(false, "아래 'Claude 연결하기'에 키를 넣으면 실제로 일해요");
+const loadSdk = async () => sdk || (sdk = (await import("https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.131.0/+esm")).default);
 (async () => {
   try { sample = window.claude?.use ? await window.claude.use("sample") : null; } catch(e) { sample = null; }
-  sample ? setMode(true) : setMode(false);
+  if (sample) return setMode(true);
+  $("byok").hidden = false; $("apiKey").value = apiKey; $("apiModel").value = apiModel; keyMode();
 })();
+$("keySave").onclick = () => {
+  apiKey = $("apiKey").value.trim(); apiModel = $("apiModel").value;
+  lsSet(KEY_API, apiKey); lsSet(KEY_MODEL, apiModel); keyMode();
+  if (apiKey){ $("byok").open = false; log("rakko", `Claude 연결 완료 (${MODEL_NAME[apiModel]})`); }
+};
+$("keyDel").onclick = () => { apiKey = ""; $("apiKey").value = ""; lsSet(KEY_API, ""); keyMode(); };
+
+async function callWithKey(text, signal, onText){
+  const Anthropic = await loadSdk();
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  const params = { model: apiModel, max_tokens: 8000, output_config: { effort: "low" }, messages: [{ role: "user", content: text }] };
+  const fb = apiModel !== "claude-haiku-5-5";   // Opus·Sonnet은 거절되면 서버가 다른 모델로 다시 시도해요
+  const stream = fb
+    ? client.beta.messages.stream({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }, { signal })
+    : client.messages.stream(params, { signal });
+  let acc = "";
+  try {
+    for await (const ev of stream){
+      if (ev.type === "content_block_delta" && ev.delta.type === "text_delta"){ acc += ev.delta.text; onText(acc); }
+    }
+    const msg = await stream.finalMessage();
+    if (msg.stop_reason === "refusal") throw { code: "refused" };
+    return acc;
+  } catch(e) {
+    if (e?.code) throw e;
+    if (e instanceof Anthropic.APIUserAbortError || signal.aborted) throw { code: "cancelled" };
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw { code: "bad_key" };
+    if (e instanceof Anthropic.RateLimitError) throw { code: "rate_limited", text: acc };
+    if (e instanceof Anthropic.APIError && e.status >= 500) throw { code: "overloaded", text: acc };
+    throw { code: "network", text: acc };
+  }
+}
 
 /* ---------- rendering ---------- */
 function renderBoard(){
@@ -570,6 +653,8 @@ async function streamWork(t, job){
   if (live && sample){
     const { text } = await sample(prompt(t.task), { signal, cache:false, onText:({text}) => apply(text) });
     apply(text);
+  } else if (live && apiKey){
+    apply(await callWithKey(prompt(t.task), signal, apply));
   } else {
     const full = demoAnswer(t.task); let pB = false, pR = false;
     await sleep(2500);
@@ -589,6 +674,7 @@ async function run(t){
   $("stop").hidden = false;
   const job = newJob(), {rakko:R, chiikawa:C, hachiware:H, usagi:S} = M;
   CREW.forEach(c => { summon(c); claim(c); setWork(c, false, "회의"); screen(c.id, ""); });
+  EXTRAS.forEach(c => { summon(c); claim(c); });
   progress(6, t.task.slice(0,40)); wb(t.task.slice(0,24), ["킥오프 회의 준비 중"]);
   screen("rakko", "[업무지시서]\n" + t.task);
   log("rakko", `업무 접수: ${t.task.slice(0,40)}`);
@@ -598,11 +684,13 @@ async function run(t){
   streamP.catch(() => {});
 
   const scripts = (async () => {
-    await Promise.all(CREW.map((c,i) => walk(c, SPOT.meet[i])));
+    await Promise.all([...CREW.map((c,i) => walk(c, SPOT.meet[i])), ...EXTRAS.map((c,i) => walk(c, SPOT.meetX[i]))]);
     if (job.failed) return;
     log("rakko", "회의실에서 킥오프 회의");
     say(R, "이번 업무는 이거야.", 2400); await sleep(1300);
-    say(C, "…!!", 1500); say(S, "우라!", 1500); await sleep(700); say(H, "좋아, 해보자~", 1800); await sleep(1300);
+    say(C, "…!!", 1500); say(S, "우라!", 1500); await sleep(700); say(H, "좋아, 해보자~", 1800); say(M.momonga, "나도 끼워줘!", 1800); await sleep(1300);
+    say(M.kurimanju, "난 탕비실에 있을게", 1800); say(M.shisa, "응원할게요~!", 1800);
+    EXTRAS.forEach(c => { const tag = c.job; walk(c, c.home).then(() => { if (c.job === tag) c.job = null; }); });
     if (job.failed) return;
     await Promise.all([
       (async () => { say(R, "난 자리에서 지켜볼게.", 2000); await walk(R, SPOT.desk.rakko); if (!job.failed) setWork(R, true, "지켜보는 중"); })(),
@@ -647,10 +735,12 @@ async function run(t){
     await sleep(1800);
     if (!tasks.some(x => x.status === "queued")){
       say(R, "다들 수고했어! 휴게실에서 쉬자~", 2400);
-      await Promise.all(CREW.map((c,i) => walk(c, LOUNGE[i])));
-      CREW.forEach(c => c.el.classList.add("cheer"));
+      EXTRAS.forEach(c => claim(c));
+      await Promise.all([...CREW.map((c,i) => walk(c, LOUNGE[i])), ...EXTRAS.map((c,i) => walk(c, SPOT.loungeX[i]))]);
+      ALL.forEach(c => c.el.classList.add("cheer"));
+      say(M.momonga, "나도 수고했어!", 2000); say(M.kani, "…!", 2000);
       say(C, "와아…!", 2000); say(H, "수고했어~", 2000); await sleep(600); say(S, "야하!", 2000);
-      await sleep(2600); CREW.forEach(c => c.el.classList.remove("cheer"));
+      await sleep(2600); ALL.forEach(c => c.el.classList.remove("cheer"));
     }
   } catch(e) {
     failJob(job);
@@ -658,6 +748,8 @@ async function run(t){
     if (["not_granted","sampling_disabled","not_declared","capability_disabled"].includes(code)){ setMode(false, "Claude 사용이 허용되지 않았어요"); sample = null; t.error = "Claude 사용이 허용되지 않았어요"; }
     else if (code === "cancelled") t.error = "멈춤";
     else if (code === "rate_limited") t.error = "사용량이 많아요. 잠시 뒤에 다시 지시해 주세요";
+    else if (code === "bad_key"){ t.error = "API 키가 올바르지 않거나 권한이 없어요"; $("byok").open = true; }
+    else if (code === "overloaded") t.error = "Claude가 지금 바빠요. 잠시 뒤에 다시 지시해 주세요";
     else if (code === "refused"){ t.error = "이 업무는 처리할 수 없대요"; t.body = ""; }
     else if (code === "format"){ t.error = "형식이 달라서 정리하지 못했어요"; }
     else t.error = "연결이 끊겼어요. 다시 지시해 주세요";
@@ -665,9 +757,9 @@ async function run(t){
     say(C, code === "cancelled" ? "…멈췄다" : "…으앙", 2200); say(R, "자리로 돌아가자.", 2200);
     log("rakko", `중단: ${t.error}`); progress(0, "대기 중이에요");
     save(); renderBoard(); renderResult(t);
-    await Promise.all(CREW.map(c => walk(c, SPOT.desk[c.id])));
+    await Promise.all(ALL.map(c => walk(c, c.home)));
   }
-  CREW.forEach(c => { setWork(c, false, ""); c.job = null; });
+  CREW.forEach(c => setWork(c, false, "")); ALL.forEach(c => c.job = null);
   ctl = null; busy = false; $("stop").hidden = true; save(); renderBoard();
   pump();
 }
