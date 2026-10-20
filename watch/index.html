@@ -15,9 +15,11 @@
   .watch { position: relative; width: 324px; height: 394px; border-radius: 52px; overflow: hidden;
            cursor: pointer; user-select: none; box-shadow: 0 0 0 10px #0b0c10, 0 20px 40px rgba(0,0,0,.5); }
   .watch img { display: block; width: 100%; height: 100%; }
-  .info { position: absolute; inset: 0 0 auto 0; height: 100px; text-align: center; color: var(--ink); text-shadow: var(--shadow); pointer-events: none; }
-  .time { font-size: 50px; line-height: 1; padding-top: 11px; }
-  .sub { margin-top: 8px; font-size: 16px; color: var(--sub); display: flex; justify-content: center; gap: 10px; }
+  /* 이미지 오른쪽 위 패널(x 150~314, y 10~112) 안에 글자를 넣는다 */
+  .info { position: absolute; top: 10px; right: 10px; width: 164px; height: 102px; padding: 6px 14px 0;
+          text-align: right; color: var(--ink); text-shadow: var(--shadow); pointer-events: none; }
+  .sub { font-size: 13px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .time { font-size: 40px; line-height: 1; }
   .name { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 14px; color: var(--sub); text-shadow: var(--shadow);
           pointer-events: none; transition: opacity .3s; }
   .hint { color: #8a8f9c; font-size: 14px; margin-top: 22px; text-align: center; }
@@ -26,35 +28,38 @@
 </head>
 <body>
 <div>
-  <div class="watch" id="watch" role="button" aria-label="터치하면 캐릭터가 바뀌어요">
-    <img id="face" src="gif/chiikawa.gif" alt="세탁기 속에서 도는 캐릭터">
+  <div class="watch" id="watch" role="button" aria-label="터치하면 그림이 바뀌어요">
+    <img id="face" src="gif/chiikawa.gif" alt="치이카와 워치 배경">
     <div class="info">
+      <div class="sub" id="date"></div>
       <div class="time" id="time">--:--</div>
-      <div class="sub"><span id="date"></span><span id="weather">날씨 확인 중</span></div>
+      <div class="sub" id="weather">날씨 확인 중</div>
     </div>
     <div class="name" id="name">치이카와</div>
   </div>
-  <p class="hint">화면을 터치하면 캐릭터가 바뀌어요</p>
+  <p class="hint">화면을 터치하면 그림이 바뀌어요</p>
 </div>
 <script>
 const CHARS = [
-  ["chiikawa", "치이카와"], ["usagi", "우사기"], ["hachiware", "하치와레"],
+  ["gif/chiikawa.gif", "세탁기 치이카와"], ["gif/usagi.gif", "세탁기 우사기"], ["gif/hachiware.gif", "세탁기 하치와레"],
+  ["still/bubble.png", "비눗방울"], ["still/onsen.png", "눈 오는 온천"], ["still/meadow.png", "풀밭"],
+  ["still/kotatsu.png", "코타츠"],
 ];
 const DAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
 const $ = (id) => document.getElementById(id);
 
 // 미리 불러 두어 바꿀 때 깜빡이지 않게 한다
-CHARS.forEach(([n]) => { new Image().src = `gif/${n}.gif`; });
+CHARS.forEach(([src]) => { new Image().src = src; });
 
 let idx = 0;
-try { idx = Number(localStorage.getItem("washer-char")) % CHARS.length || 0; } catch (e) {}
+try { idx = Number(localStorage.getItem("watch-face")) % CHARS.length || 0; } catch (e) {}
 function show() {
-  $("face").src = `gif/${CHARS[idx][0]}.gif`;
+  $("face").src = CHARS[idx][0];
   $("name").textContent = CHARS[idx][1];
 }
 $("watch").addEventListener("click", () => {
   idx = (idx + 1) % CHARS.length;
-  try { localStorage.setItem("washer-char", idx); } catch (e) {}
+  try { localStorage.setItem("watch-face", idx); } catch (e) {}
   show();
 });
 show();
