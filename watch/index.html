@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>치이카와 세탁기 워치</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #46403c; --sub: #7d746c; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #181a22; }
+  body { display: grid; place-items: center; font-family: "Jua", sans-serif; -webkit-tap-highlight-color: transparent; }
+  /* Apple Watch 40mm 화면 크기(324x394)에 맞춘 판 */
+  .watch { position: relative; width: 324px; height: 394px; border-radius: 52px; overflow: hidden;
+           cursor: pointer; user-select: none; box-shadow: 0 0 0 10px #0b0c10, 0 20px 40px rgba(0,0,0,.5); }
+  .watch img { display: block; width: 100%; height: 100%; }
+  .info { position: absolute; inset: 0 0 auto 0; height: 100px; text-align: center; color: var(--ink); pointer-events: none; }
+  .time { font-size: 46px; line-height: 1; padding-top: 15px; }
+  .sub { margin-top: 10px; font-size: 16px; color: var(--sub); display: flex; justify-content: center; gap: 10px; }
+  .name { position: absolute; left: 58px; bottom: 22px; font-size: 14px; color: var(--sub);
+          pointer-events: none; transition: opacity .3s; }
+  .hint { color: #8a8f9c; font-size: 14px; margin-top: 22px; text-align: center; }
+  @media (max-width: 360px) { .watch { transform: scale(calc(100vw / 360)); } }
+</style>
+</head>
+<body>
+<div>
+  <div class="watch" id="watch" role="button" aria-label="터치하면 캐릭터가 바뀌어요">
+    <img id="face" src="gif/chiikawa.gif" alt="세탁기 속에서 도는 캐릭터">
+    <div class="info">
+      <div class="time" id="time">--:--</div>
+      <div class="sub"><span id="date"></span><span id="weather">날씨 확인 중</span></div>
+    </div>
+    <div class="name" id="name">치이카와</div>
+  </div>
+  <p class="hint">화면을 터치하면 캐릭터가 바뀌어요</p>
+</div>
+<script>
+const CHARS = [
+  ["chiikawa", "치이카와"], ["hachiware", "하치와레"], ["usagi", "우사기"], ["momonga", "모몽가"],
+  ["rakko", "랏코"], ["kurimanju", "쿠리만쥬"], ["shisa", "시사"],
+];
+const DAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+const $ = (id) => document.getElementById(id);
+
+// 미리 불러 두어 바꿀 때 깜빡이지 않게 한다
+CHARS.forEach(([n]) => { new Image().src = `gif/${n}.gif`; });
+
+let idx = 0;
+try { idx = Number(localStorage.getItem("washer-char")) % CHARS.length || 0; } catch (e) {}
+function show() {
+  $("face").src = `gif/${CHARS[idx][0]}.gif`;
+  $("name").textContent = CHARS[idx][1];
+}
+$("watch").addEventListener("click", () => {
+  idx = (idx + 1) % CHARS.length;
+  try { localStorage.setItem("washer-char", idx); } catch (e) {}
+  show();
+});
+show();
+
+function tick() {
+  const d = new Date();
+  $("time").textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  $("date").textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}`;
+}
+tick();
+setInterval(tick, 1000);
+
+// 날씨: Open-Meteo(키 없이 쓰는 무료 API). 위치 권한이 없으면 서울 날씨를 보여 준다.
+const WMO = [
+  [[0], "☀️ 맑음"], [[1, 2], "🌤 구름 조금"], [[3], "☁️ 흐림"], [[45, 48], "🌫 안개"],
+  [[51, 53, 55, 56, 57], "🌦 이슬비"], [[61, 63, 65, 66, 67, 80, 81, 82], "🌧 비"],
+  [[71, 73, 75, 77, 85, 86], "❄️ 눈"], [[95, 96, 99], "⛈ 뇌우"],
+];
+const wxText = (code) => (WMO.find(([codes]) => codes.includes(code)) || [, "🌡"])[1];
+
+async function loadWeather(lat, lon, place) {
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`);
+    const j = await r.json();
+    const c = j.current;
+    $("weather").textContent = `${wxText(c.weather_code)} ${Math.round(c.temperature_2m)}°${place ? " · " + place : ""}`;
+  } catch (e) {
+    $("weather").textContent = "날씨를 못 불러왔어요";
+  }
+}
+function startWeather() {
+  const seoul = () => loadWeather(37.5665, 126.978, "서울");
+  if (!navigator.geolocation) return seoul();
+  navigator.geolocation.getCurrentPosition(
+    (p) => loadWeather(p.coords.latitude.toFixed(3), p.coords.longitude.toFixed(3)),
+    seoul, { timeout: 8000, maximumAge: 30 * 60 * 1000 });
+}
+startWeather();
+setInterval(startWeather, 30 * 60 * 1000);
+</script>
+</body>
+</html>
