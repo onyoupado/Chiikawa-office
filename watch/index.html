@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
-  :root { --ink: #46403c; --sub: #7d746c; }
+  :root { --ink: #fff; --sub: #fff; --shadow: 0 1px 6px rgba(0,0,0,.7); }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; background: #181a22; }
   body { display: grid; place-items: center; font-family: "Jua", sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -15,10 +15,10 @@
   .watch { position: relative; width: 324px; height: 394px; border-radius: 52px; overflow: hidden;
            cursor: pointer; user-select: none; box-shadow: 0 0 0 10px #0b0c10, 0 20px 40px rgba(0,0,0,.5); }
   .watch img { display: block; width: 100%; height: 100%; }
-  .info { position: absolute; inset: 0 0 auto 0; height: 100px; text-align: center; color: var(--ink); pointer-events: none; }
-  .time { font-size: 46px; line-height: 1; padding-top: 15px; }
-  .sub { margin-top: 10px; font-size: 16px; color: var(--sub); display: flex; justify-content: center; gap: 10px; }
-  .name { position: absolute; left: 58px; bottom: 22px; font-size: 14px; color: var(--sub);
+  .info { position: absolute; inset: 0 0 auto 0; height: 100px; text-align: center; color: var(--ink); text-shadow: var(--shadow); pointer-events: none; }
+  .time { font-size: 50px; line-height: 1; padding-top: 11px; }
+  .sub { margin-top: 8px; font-size: 16px; color: var(--sub); display: flex; justify-content: center; gap: 10px; }
+  .name { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 14px; color: var(--sub); text-shadow: var(--shadow);
           pointer-events: none; transition: opacity .3s; }
   .hint { color: #8a8f9c; font-size: 14px; margin-top: 22px; text-align: center; }
   @media (max-width: 360px) { .watch { transform: scale(calc(100vw / 360)); } }
