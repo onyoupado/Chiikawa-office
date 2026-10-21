@@ -30,17 +30,18 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:.72rem;max-height:320px;
 확실하지 않은 내용은 &quot;추측&quot;이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1569줄): 3D 버전의 모든 로직 (Three.js 장면, 건물·거리, 이동, 욕구, 관계, 과업, 상점, 이벤트, 대화, 에이전트 회의)
+- 3d/app.js (1615줄): 3D 버전의 모든 로직 (Three.js 장면, 건물·거리, 이동, 욕구, 관계, 과업, 상점, 이벤트, 대화, 에이전트 회의)
 - 3d/worklog.js (49줄): 에이전트 역할과 개발 일지 데이터
-- 3d.html (220줄): 3D 버전 화면 구조와 CSS
+- 3d.html (221줄): 3D 버전 화면 구조와 CSS
 - index.html (1129줄): 2D 버전 (한 파일에 HTML·CSS·JS, Claude 업무 지시)</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 1/14 · 3d/app.js</h2><button type="button" data-i="1">복사</button></div><details><summary>내용 보기 (17,897자)</summary><pre id="t1">[파트 1/14] 파일: 3d/app.js (1/7)
+<section class="part"><div class="ph"><h2>파트 1/14 · 3d/app.js</h2><button type="button" data-i="1">복사</button></div><details><summary>내용 보기 (17,987자)</summary><pre id="t1">[파트 1/14] 파일: 3d/app.js (1/7)
 ```
 // 치이카와 오피스 3D: 3층 건물, 엘리베이터·에스컬레이터, 욕구·감정·관계·하루 흐름, 과업·레벨·코인·상점, 이벤트, 대화, 업무 지시
 import * as THREE from &quot;three&quot;;
 import { OrbitControls } from &quot;three/addons/controls/OrbitControls.js&quot;;
 import { CSS2DRenderer, CSS2DObject } from &quot;three/addons/renderers/CSS2DRenderer.js&quot;;
 import { ROLES, SESSIONS } from &quot;./worklog.js&quot;;
+import { mergeGeometries } from &quot;three/addons/utils/BufferGeometryUtils.js&quot;;
 
 const $ = id =&gt; document.getElementById(id);
 const rand = a =&gt; a[Math.floor(Math.random() * a.length)];
@@ -57,12 +58,16 @@ function josa(w, pair){
 }
 
 /* ================= renderer, camera, lights ================= */
-let renderer;
-try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
-catch (e) { view.insertAdjacentHTML(&quot;beforeend&quot;, `&lt;div class=&quot;err&quot;&gt;이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.&lt;br&gt;&lt;a href=&quot;./&quot;&gt;2D 사무실로 가기&lt;/a&gt;&lt;/div&gt;`); throw e; }
+// 화질: 휴대폰은 기본 &#x27;보통&#x27;(가벼운 조명·낮은 해상도·초당 40장), 컴퓨터는 &#x27;고화질&#x27;
 const MOBILE = matchMedia(&quot;(pointer: coarse)&quot;).matches;
-renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.75 : 2));
-renderer.shadowMap.enabled = !MOBILE;
+const QKEY = &quot;chiikawa3d-quality&quot;;
+const QUALITY = (() =&gt; { try { return localStorage.getItem(QKEY) || (MOBILE ? &quot;mid&quot; : &quot;high&quot;); } catch (e) { return MOBILE ? &quot;mid&quot; : &quot;high&quot;; } })();
+const Q = {low:{name:&quot;가볍게&quot;, pr:1, aa:false, fps:30, shadow:false}, mid:{name:&quot;보통&quot;, pr:1.4, aa:true, fps:40, shadow:false}, high:{name:&quot;고화질&quot;, pr:2, aa:true, fps:0, shadow:true}}[QUALITY] || {name:&quot;보통&quot;, pr:1.4, aa:true, fps:40, shadow:false};
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: &quot;high-performance&quot; }); }
+catch (e) { view.insertAdjacentHTML(&quot;beforeend&quot;, `&lt;div class=&quot;err&quot;&gt;이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.&lt;br&gt;&lt;a href=&quot;./&quot;&gt;2D 사무실로 가기&lt;/a&gt;&lt;/div&gt;`); throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
+renderer.shadowMap.enabled = Q.shadow;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 view.prepend(renderer.domElement);
@@ -96,7 +101,31 @@ const G = {1: new THREE.Group(), 2: new THREE.Group(), 3: new THREE.Group()};
 Object.values(G).forEach(g =&gt; scene.add(g));
 const LABELS = {1: [], 2: [], 3: []};
 const MATS = {};
-const mat = (c, o = {}) =&gt; { const k = c + JSON.stringify(o); return MATS[k] || (MATS[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o })); };
+// 고화질이 아니면 계산이 가벼운 Lambert 재질을 써요
+const mat = (c, o = {}) =&gt; {
+  const k = c + JSON.stringify(o); if (MATS[k]) return MATS[k];
+  if (QUALITY === &quot;high&quot;) return MATS[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o });
+  const { roughness, metalness, ...rest } = o; return MATS[k] = new THREE.MeshLambertMaterial({ color: c, ...rest });
+};
+// 움직이지 않는 물체를 재질별로 하나로 합쳐서 그리기 요청을 줄여요
+function mergeStatic(group){
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), buckets = new Map();
+  for (const m of [...group.children]){
+    if (!m.isMesh || m.userData.dyn || m.material.map) continue;
+    if (!buckets.has(m.material)) buckets.set(m.material, []);
+    buckets.get(m.material).push(m);
+  }
+  let before = 0, after = 0;
+  for (const [material, list] of buckets){
+    before += list.length; if (list.length &lt; 2){ after += list.length; continue; }
+    const geos = list.map(m =&gt; { let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g = g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld)); for (const a of Object.keys(g.attributes)) if (![&quot;position&quot;, &quot;normal&quot;, &quot;uv&quot;].includes(a)) g.deleteAttribute(a); return g; });
+    const merged = mergeGeometries(geos, false); if (!merged){ after += list.length; continue; }
+    const mesh = new THREE.Mesh(merged, material); mesh.castShadow = list.some(m =&gt; m.castShadow); mesh.receiveShadow = true; mesh.renderOrder = list[0].renderOrder;
+    list.forEach(m =&gt; { group.remove(m); m.geometry.dispose(); }); geos.forEach(g =&gt; g.dispose()); group.add(mesh); after++;
+  }
+  return [before, after];
+}
 const GLASS = new THREE.MeshStandardMaterial({ color: &quot;#bfe3ff&quot;, transparent: true, opacity: .32, roughness: .1, depthWrite: false });
 function addTo(f, m){ (f === &quot;scene&quot; ? scene : G[f]).add(m); return m; }
 function box(f, x, y, w, h, H, color, lift = 0, material){
@@ -282,6 +311,9 @@ plane(2, 400, 470, 240, 100, &quot;#ffd7e3&quot;, .8);
 sofa(2, 400, 560, 160);
 box(2, 470, 490, 90, 40, 16, &quot;#e8d2b4&quot;); cyl(2, 500, 510, 10, 2, &quot;#ffffff&quot;, 16);
 box(2, 580, 380, 100, 20, 22, &quot;#e8d2b4&quot;);
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 2/14 · 3d/app.js</h2><button type="button" data-i="2">복사</button></div><details><summary>내용 보기 (18,025자)</summary><pre id="t2">[파트 2/14] 파일: 3d/app.js (2/7)
+```
 placeAt(canvasPanel(2, 90, 52, (g, w, h) =&gt; { g.fillStyle = &quot;#1f2337&quot;; g.fillRect(0, 0, w, h); g.fillStyle = &quot;#ffd36b&quot;; g.font = &quot;bold 10px &#x27;Gowun Dodum&#x27;, sans-serif&quot;; g.fillText(&quot;♪ 오늘의 노래&quot;, 12, 30); }), 630, 388, 2, 50);
 box(2, 345, 365, 120, 36, 34, &quot;#e8d2b4&quot;); cyl(2, 370, 383, 12, 2, &quot;#cfe3f3&quot;, 34); cyl(2, 420, 383, 9, 2, &quot;#2b2d3a&quot;, 34); cyl(2, 445, 383, 9, 2, &quot;#2b2d3a&quot;, 34);
 box(2, 470, 362, 40, 40, 90, &quot;#c9d0dc&quot;);
@@ -300,9 +332,6 @@ box(3, 330, 50, 120, 46, 40, &quot;#2b2d3a&quot;); box(3, 336, 52, 108, 16, 3, &
 box(3, 270, 215, 110, 40, 22, &quot;#c9a77e&quot;); box(3, 292, 219, 66, 32, 1, &quot;#ff8fb1&quot;, 22); box(3, 325, 219, 33, 16, 1.5, &quot;#6f9fd8&quot;, 22); box(3, 292, 235, 33, 16, 1.5, &quot;#f2cf4a&quot;, 22);
 box(3, 400, 200, 60, 30, 70, &quot;#c9a77e&quot;); plant(3, 455, 60);
 const screenTex = canvasPanel(3, 370, 110, (g, w, h, t = 0) =&gt; {
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 2/14 · 3d/app.js</h2><button type="button" data-i="2">복사</button></div><details><summary>내용 보기 (18,037자)</summary><pre id="t2">[파트 2/14] 파일: 3d/app.js (2/7)
-```
   const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, `hsl(${220 + Math.sin(t) * 30},45%,22%)`); gr.addColorStop(1, `hsl(${280 + Math.cos(t) * 30},40%,26%)`);
   g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = &quot;#fff&quot;; g.textAlign = &quot;center&quot;; g.font = &quot;bold 30px Gaegu, sans-serif&quot;; g.fillText(&quot;▶ 치이카와 극장판&quot;, w / 2, 55); g.font = &quot;14px &#x27;Gowun Dodum&#x27;, sans-serif&quot;; g.fillText(&quot;상영 중&quot;, w / 2, 82); g.textAlign = &quot;left&quot;;
 }, 2);
@@ -331,7 +360,7 @@ Object.assign(S3, {
 
 /* night lights: 층마다 따뜻한 조명 두 개 */
 const NIGHT = [];
-for (const f of [1, 2, 3]) for (const x of [300, 820]){
+if (QUALITY !== &quot;low&quot;) for (const f of [1, 2, 3]) for (const x of [300, 820]){
   const l = new THREE.PointLight(&quot;#ffd9a0&quot;, 0, 900, 1); l.position.copy(W(x, CY, f)); l.position.y += 120; addTo(f, l); NIGHT.push(l);
 }
 
@@ -339,7 +368,7 @@ for (const f of [1, 2, 3]) for (const x of [300, 820]){
 const ELEV = {};
 for (const f of [1, 2, 3]){
   box(f, 30, 452, 62, 80, 78, &quot;#aeb7c8&quot;);
-  const l = box(f, 36, 532, 25, 2, 62, &quot;#c9d0dc&quot;), r = box(f, 61, 532, 25, 2, 62, &quot;#c9d0dc&quot;);
+  const l = box(f, 36, 532, 25, 2, 62, &quot;#c9d0dc&quot;), r = box(f, 61, 532, 25, 2, 62, &quot;#c9d0dc&quot;); l.userData.dyn = r.userData.dyn = true;
   const ind = canvasPanel(f, 26, 10, (g, w, h, t = `${f}F`) =&gt; { g.fillStyle = &quot;#1f2337&quot;; g.fillRect(0, 0, w, h); g.fillStyle = &quot;#ffcf66&quot;; g.font = &quot;bold 8px monospace&quot;; g.fillText(t, 7, 8); });
   placeAt(ind, 61, 533.5, f, 70);
   ELEV[f] = {l, r, ind, lx: l.position.x, rx: r.position.x, open: 0, want: 0};
@@ -375,7 +404,8 @@ const CITY = new THREE.Group(); scene.add(CITY);
 const GLASS2 = new THREE.MeshStandardMaterial({ color:&quot;#a9d4ff&quot;, transparent:true, opacity:.16, roughness:.05, metalness:.3, depthWrite:false, side:THREE.DoubleSide });
 const FRAME = mat(&quot;#5d6578&quot;, { metalness:.4, roughness:.4 });
 function facade(f){
-  const y0 = fy(f), H = FH - 8, add = (m, front) =&gt; { addTo(f, m); if (front) FRONT.push(m); return m; };
+  const fg = new THREE.Group(); G[f].add(fg); FRONT.push(fg);          // 앞쪽 유리는 한 묶음으로 켜고 꺼요
+  const y0 = fy(f), H = FH - 8, add = (m, front) =&gt; { (front ? fg : G[f]).add(m); return m; };
   const sides = [[BX0, BY1, BX1, BY1, true], [BX0, BY0, BX1, BY0, false], [BX0, BY0, BX0, BY1, false], [BX1, BY0, BX1, BY1, false]];
   for (const [x0, z0, x1, z1, front] of sides){
     const horiz = z0 === z1, len = horiz ? x1 - x0 : z1 - z0;
@@ -499,6 +529,9 @@ const TRAITS = {
 const HOME = {rakko:DESK.rakko, chiikawa:DESK.chiikawa, hachiware:DESK.hachiware, usagi:DESK.usagi, momonga:P(1,560,520), kurimanju:P(1,840,200), shisa:P(1,800,525), kani:P(1,915,575)};
 const LINES = {rakko:[&quot;오늘도 평화롭군&quot;,&quot;보고서 확인 중&quot;], chiikawa:[&quot;…!&quot;,&quot;와아…&quot;,&quot;할 수 있어…!&quot;], hachiware:[&quot;오늘 날씨 좋다~&quot;,&quot;뭐든 해보는 거야!&quot;],
   usagi:[&quot;우라!&quot;,&quot;야하!&quot;,&quot;푸루루…&quot;,&quot;하아?&quot;], momonga:[&quot;나 귀엽지?&quot;,&quot;칭찬해줘!&quot;], kurimanju:[&quot;하아…&quot;,&quot;캬~&quot;], shisa:[&quot;열심히 할게요~!&quot;,&quot;와아~&quot;], kani:[&quot;…&quot;,&quot;(사락사락)&quot;]};
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 3/14 · 3d/app.js</h2><button type="button" data-i="3">복사</button></div><details><summary>내용 보기 (18,022자)</summary><pre id="t3">[파트 3/14] 파일: 3d/app.js (3/7)
+```
 const ALIAS = {rakko:[&quot;랏코&quot;,&quot;라코&quot;,&quot;팀장&quot;], chiikawa:[&quot;치이카와&quot;,&quot;치이&quot;,&quot;치카와&quot;], hachiware:[&quot;하치와레&quot;,&quot;하치&quot;], usagi:[&quot;우사기&quot;,&quot;토끼&quot;], momonga:[&quot;모몽가&quot;,&quot;모몽&quot;], kurimanju:[&quot;쿠리만쥬&quot;,&quot;쿠리만주&quot;,&quot;쿠리&quot;], shisa:[&quot;시사&quot;], kani:[&quot;카니&quot;]};
 const VOICE = {chiikawa:880, hachiware:660, usagi:990, rakko:440, momonga:1046, kurimanju:392, shisa:740, kani:587};
 const loader = new THREE.TextureLoader();
@@ -521,9 +554,6 @@ for (const id of Object.keys(HOME)){
   c.gem.scale.y = 1.6; c.obj.add(c.gem);
   c.hatG = new THREE.Group(); c.obj.add(c.hatG);
   CH.push(c);
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 3/14 · 3d/app.js</h2><button type="button" data-i="3">복사</button></div><details><summary>내용 보기 (17,975자)</summary><pre id="t3">[파트 3/14] 파일: 3d/app.js (3/7)
-```
 }
 const BY = Object.fromEntries(CH.map(c =&gt; [c.id, c]));
 const CREW = CH.slice(0, 4);
@@ -753,6 +783,9 @@ const ACTIONS = {
   study:{name:&quot;풀뽑기 자격증 공부&quot;, emo:&quot;📝&quot;, only:&quot;chiikawa&quot;, at:pick(DESK.chiikawa, S3.board[0]), dur:9, eff:{fun:1, energy:-.6}, skill:&quot;knowledge&quot;, lines:[&quot;이번엔 꼭 합격…!&quot;,&quot;외워야 해…&quot;,&quot;…!&quot;]},
   sing:{name:&quot;노래 부르기&quot;, emo:&quot;🎤&quot;, only:&quot;hachiware&quot;, at:null, dur:7, eff:{fun:6}, skill:&quot;art&quot;, aura:{fun:1.2}, lines:[&quot;♪ 랄라라~&quot;,&quot;♬ 오늘도 힘내자~&quot;]},
   ura:{name:&quot;우라! 외치기&quot;, emo:&quot;📣&quot;, only:&quot;usagi&quot;, at:null, dur:5, eff:{fun:8, energy:-1}, anim:&quot;jump&quot;, aura:{fun:.6}, lines:[&quot;우라!!&quot;,&quot;야하!&quot;,&quot;푸루루루루!&quot;]},
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 4/14 · 3d/app.js</h2><button type="button" data-i="4">복사</button></div><details><summary>내용 보기 (17,994자)</summary><pre id="t4">[파트 4/14] 파일: 3d/app.js (4/7)
+```
   sword:{name:&quot;검술 수련&quot;, emo:&quot;⚔️&quot;, only:&quot;rakko&quot;, at:pick(S3.sword), dur:9, eff:{energy:-1.5, fun:2}, skill:&quot;fitness&quot;, anim:&quot;jump&quot;, lines:[&quot;하앗!&quot;,&quot;집중…&quot;,&quot;한 번 더&quot;]},
   aegyo:{name:&quot;애교 부리기&quot;, emo:&quot;🥺&quot;, only:&quot;momonga&quot;, at:null, partner:true, dur:6, eff:{social:8, fun:3}, skill:&quot;social&quot;, lines:[&quot;칭찬해줘!&quot;,&quot;나 귀엽지?&quot;,&quot;헤헤&quot;]},
   drink:{name:&quot;한 잔 하기&quot;, emo:&quot;🍶&quot;, only:&quot;kurimanju&quot;, at:pick(S1.counter, S3.table), dur:8, eff:{fun:5, hunger:3, energy:-.3}, lines:[&quot;캬~&quot;,&quot;하아… 행복해&quot;,&quot;안주가 최고야&quot;]},
@@ -774,9 +807,6 @@ for (const c of CH){
   const s = saved?.chars?.[c.id];
   c.needs = s?.needs || Object.fromEntries(NEEDS.map(n =&gt; [n.k, 55 + Math.random() * 40]));
   c.lv = s?.lv || 1; c.xp = s?.xp || 0; c.skills = s?.skills || Object.fromEntries(Object.keys(SKILLS).map(k =&gt; [k, 0]));
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 4/14 · 3d/app.js</h2><button type="button" data-i="4">복사</button></div><details><summary>내용 보기 (18,030자)</summary><pre id="t4">[파트 4/14] 파일: 3d/app.js (4/7)
-```
   c.stats = s?.stats || {}; c.prel = s?.prel ?? 20; c.hat = s?.hat || null; c.chatLog = s?.chatLog || [];
 }
 const mood = c =&gt; { const v = NEEDS.map(n =&gt; c.needs[n.k]), mn = Math.min(...v), avg = v.reduce((a, b) =&gt; a + b, 0) / v.length; return clamp(avg * .7 + mn * .3, 0, 100); };
@@ -1004,6 +1034,9 @@ function buildHat(c){
   c.hatG.clear(); if (!c.hat) return;
   const m3 = (geo, col, y, o) =&gt; { const m = new THREE.Mesh(geo, mat(col, o)); m.position.y = y; c.hatG.add(m); return m; };
   if (c.hat === &quot;ribbon&quot;){ const a = m3(new THREE.ConeGeometry(6, 12, 8), &quot;#ff6b9a&quot;, 2); a.rotation.z = Math.PI / 2; a.position.x = -7; const b = m3(new THREE.ConeGeometry(6, 12, 8), &quot;#ff6b9a&quot;, 2); b.rotation.z = -Math.PI / 2; b.position.x = 7; m3(new THREE.SphereGeometry(3.5, 8, 6), &quot;#ff6b9a&quot;, 2); }
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 5/14 · 3d/app.js</h2><button type="button" data-i="5">복사</button></div><details><summary>내용 보기 (17,778자)</summary><pre id="t5">[파트 5/14] 파일: 3d/app.js (5/7)
+```
   if (c.hat === &quot;party&quot;){ m3(new THREE.ConeGeometry(10, 26, 16), &quot;#ffd36b&quot;, 13); m3(new THREE.SphereGeometry(3, 8, 6), &quot;#ff8fb1&quot;, 27); }
   if (c.hat === &quot;flowerpin&quot;){ for (let i = 0; i &lt; 5; i++){ const p = m3(new THREE.SphereGeometry(3.6, 8, 6), &quot;#ffb3c8&quot;, 2); p.position.x = 12 + Math.cos(i * 1.26) * 4; p.position.z = Math.sin(i * 1.26) * 4; } m3(new THREE.SphereGeometry(2.5, 8, 6), &quot;#ffe066&quot;, 2).position.x = 12; }
   if (c.hat === &quot;chef&quot;){ m3(new THREE.CylinderGeometry(11, 11, 12, 16), &quot;#ffffff&quot;, 6); m3(new THREE.SphereGeometry(14, 16, 10), &quot;#ffffff&quot;, 16).scale.y = .6; }
@@ -1023,9 +1056,6 @@ $(&quot;shop&quot;).addEventListener(&quot;click&quot;, e =&gt; {
   const b = e.target.closest(&quot;.item&quot;); if (!b || b.disabled) return;
   const {kind, id} = b.dataset;
   if (kind === &quot;decor&quot;){ placing = id; $(&quot;sel&quot;).hidden = false; $(&quot;sel&quot;).textContent = `${DECOR[id].emo} ${DECOR[id].name}: 놓을 바닥을 눌러 주세요 (${viewFloor || 1}층)`; if (viewFloor === 0) showFloor(1); view.scrollIntoView({behavior:&quot;smooth&quot;, block:&quot;center&quot;}); }
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 5/14 · 3d/app.js</h2><button type="button" data-i="5">복사</button></div><details><summary>내용 보기 (17,929자)</summary><pre id="t5">[파트 5/14] 파일: 3d/app.js (5/7)
-```
   if (kind === &quot;up&quot;){ S.coins -= UPGRADES[id].price; S.up[id] = true; addCoins(0); log(`🛠️ ${UPGRADES[id].name} 설치! ${UPGRADES[id].desc}`); }
   if (kind === &quot;hat&quot; &amp;&amp; selected){ S.coins -= HATS[id].price; selected.hat = id; buildHat(selected); addCoins(0); say(selected, rand([&quot;어때? 어울려?&quot;,&quot;와아…!&quot;,&quot;헤헤&quot;]), 2000); log(`${HATS[id].emo} ${selected.name}에게 ${josa(HATS[id].name, &quot;을를&quot;)} 씌웠어요`); }
   $(&quot;coins&quot;).textContent = `🪙 ${S.coins}`;
@@ -1225,6 +1255,9 @@ const taskPrompt = task =&gt; `너는 작은 사무실 팀이야. 아래 업무�
 @검토
 점수: (1~5 정수)
 한줄평: (40자 이내)`;
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 6/14 · 3d/app.js</h2><button type="button" data-i="6">복사</button></div><details><summary>내용 보기 (18,000자)</summary><pre id="t6">[파트 6/14] 파일: 3d/app.js (6/7)
+```
 const demoTask = t =&gt; `@제목: ${t.slice(0, 14)}\n@결과물\n## ${t.slice(0, 30)}\n\n&gt; 예시 결과물이에요. &#x27;Claude 연결&#x27;에서 키를 넣으면 실제 결과물을 써요.\n\n### 진행 순서\n1. 원하는 결과물의 모양과 분량을 정해요.\n2. 필요한 자료를 자료실에서 모아요.\n3. 초안을 쓰고 우사기가 검토해요.\n4. 랏코가 최종본을 전달해요.\n@검토\n점수: 3\n한줄평: 키를 연결하면 진짜로 일할 수 있어! 야하!`;
 const inl = s =&gt; esc(s).replace(/\*\*(.+?)\*\*/g, &quot;&lt;strong&gt;$1&lt;/strong&gt;&quot;);
 function md(src){
@@ -1251,9 +1284,6 @@ $(&quot;taskGo&quot;).onclick = async () =&gt; {
   try { text = connected() ? await askClaude(&quot;&quot;, [{role:&quot;user&quot;, content:taskPrompt(t)}], 8000) : (await sleep(6000), demoTask(t)); }
   catch (err) { text = null; $(&quot;taskOut&quot;).innerHTML = `&lt;p class=&quot;note&quot; style=&quot;color:var(--bad)&quot;&gt;${ERRMSG[err?.code] || &quot;오류가 났어요&quot;}. 다시 지시해 주세요.&lt;/p&gt;`; }
   taskBusy = false; $(&quot;taskGo&quot;).disabled = false;
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 6/14 · 3d/app.js</h2><button type="button" data-i="6">복사</button></div><details><summary>내용 보기 (17,885자)</summary><pre id="t6">[파트 6/14] 파일: 3d/app.js (6/7)
-```
   CREW.forEach(c =&gt; { if (c.cur === &quot;work&quot;){ c.cur = null; c.act = null; c.manual = performance.now() + 5000; } });
   if (!text) return;
   const title = (text.match(/@제목:\s*(.+)/) || [])[1] || t.slice(0, 14);
@@ -1485,6 +1515,9 @@ async function agentMeeting(topic){
   script = script || localMeeting(topic);
   const team = CH.slice(); claim(team); await gather(team);
   for (const l of script.lines) await speak(BY[l.who], l.text);
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 7/14 · 3d/app.js</h2><button type="button" data-i="7">복사</button></div><details><summary>내용 보기 (11,311자)</summary><pre id="t7">[파트 7/14] 파일: 3d/app.js (7/7)
+```
   for (const d of script.decisions){ minute(null, `✅ 결정: ${d}`, &quot;head&quot;); }
   const tasks = script.todos.map(t =&gt; ({title:t.title, who:t.who, p:0, status:&quot;todo&quot;})); TASKS.push(...tasks); renderBoard();
   for (const t of tasks) minute(BY[t.who], `할 일: ${t.title}`, &quot;todo&quot;);
@@ -1514,9 +1547,6 @@ async function standup(){
 setInterval(() =&gt; { if (Math.random() &lt; .35) standup(); }, 240000);
 $(&quot;logSel&quot;).innerHTML = SESSIONS.map((s, i) =&gt; `&lt;option value=&quot;${i}&quot;&gt;${s.date} · ${s.title}&lt;/option&gt;`).join(&quot;&quot;);
 $(&quot;replayBtn&quot;).onclick = () =&gt; playSession(SESSIONS[+$(&quot;logSel&quot;).value || 0]);
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 7/14 · 3d/app.js</h2><button type="button" data-i="7">복사</button></div><details><summary>내용 보기 (8,353자)</summary><pre id="t7">[파트 7/14] 파일: 3d/app.js (7/7)
-```
 $(&quot;meetForm&quot;).addEventListener(&quot;submit&quot;, e =&gt; { e.preventDefault(); const t = $(&quot;meetIn&quot;).value.trim(); if (!t) return; $(&quot;meetIn&quot;).value = &quot;&quot;; agentMeeting(t); });
 
 /* ================= panels ================= */
@@ -1572,10 +1602,16 @@ setInterval(() =&gt; { renderStatus(); for (const f of [1, 2, 3]) $(&quot;n&quot
 /* ================= animation loop ================= */
 const clock = new THREE.Clock();
 const SPEED = 120, RIDE = 55;
+let lastFrame = 0;
 function tick(){
-  const dt = Math.min(.05, clock.getDelta()), now = performance.now();
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  if (Q.fps &amp;&amp; now - lastFrame &lt; 1000 / Q.fps - 2) return;      // 휴대폰은 초당 그리는 장수를 줄여요
+  lastFrame = now;
+  const dt = Math.min(.1, clock.getDelta());
   S.time = (S.time + dt * 2 * speed) % 1440;
-  if ((tick.t = (tick.t || 0) + dt) &gt; .25){ tick.t = 0; applyTime(); if (G[3].visible) screenTex.redraw(now / 2000); }
+  if ((tick.t = (tick.t || 0) + dt) &gt; .25){ tick.t = 0; applyTime(); }
+  if ((tick.s = (tick.s || 0) + dt) &gt; 1.2){ tick.s = 0; if (G[3].visible &amp;&amp; QUALITY !== &quot;low&quot;) screenTex.redraw(now / 2000); }
   for (const e of ESC) e.tex.offset.y -= e.dir * dt * 1.2;
   for (const f of [1, 2, 3]){ const E = ELEV[f]; E.open = lerp(E.open, E.want, Math.min(1, dt * 6)); E.l.position.x = E.lx - E.open * 22; E.r.position.x = E.rx + E.open * 22; }
   if (bobObj){ bobObj.position.y = fy(3) + Math.abs(Math.sin(now / 250)) * 10; bobObj.rotation.y += dt; }
@@ -1612,15 +1648,25 @@ function tick(){
   camTick(dt); cityTick(dt);
   controls.update();
   renderer.render(scene, camera); labels.render(scene, camera);
-  requestAnimationFrame(tick);
 }
 
 /* ================= start ================= */
+{ // 정적인 물체 합치기 (처음 한 번)
+  let b = 0, a = 0; for (const g of [G[1], G[2], G[3], CITY, ROOF, ...FRONT]){ const [x, y] = mergeStatic(g); b += x; a += y; }
+  console.info(`[치이카와 오피스] 정적 물체 ${b}개 → ${a}개로 합침 · 화질 ${Q.name}`);
+}
+$(&quot;qualityBtn&quot;).textContent = `화질: ${Q.name}`;
+$(&quot;qualityBtn&quot;).onclick = () =&gt; {
+  const next = {low:&quot;mid&quot;, mid:&quot;high&quot;, high:&quot;low&quot;}[QUALITY] || &quot;mid&quot;;
+  if (!confirm(`화질을 &#x27;${({low:&quot;가볍게&quot;, mid:&quot;보통&quot;, high:&quot;고화질&quot;})[next]}&#x27;(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
+  try { localStorage.setItem(QKEY, next); } catch (e) {}
+  save(); location.reload();
+};
 applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); renderShop(); renderStatus(); connUI();
 $(&quot;coins&quot;).textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c =&gt; { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:&quot;sleep&quot;, t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent};   // 디버그용
+window.__office = {CH, S, ESC, addCoins, startEvent, renderer};   // 디버그용
 log(&quot;출근 완료! 캐릭터를 누르거나 명령을 써 보세요.&quot;);
 setTimeout(() =&gt; say(BY.hachiware, &quot;오늘도 힘내자~!&quot;, 2600), 800);
 ```</pre></details></section>
@@ -1676,7 +1722,7 @@ export const SESSIONS = [
   },
 ];
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 9/14 · 3d.html</h2><button type="button" data-i="9">복사</button></div><details><summary>내용 보기 (17,795자)</summary><pre id="t9">[파트 9/14] 파일: 3d.html (1/1)
+<section class="part"><div class="ph"><h2>파트 9/14 · 3d.html</h2><button type="button" data-i="9">복사</button></div><details><summary>내용 보기 (17,864자)</summary><pre id="t9">[파트 9/14] 파일: 3d.html (1/1)
 ```
 &lt;!doctype html&gt;
 &lt;html lang=&quot;ko&quot;&gt;
@@ -1830,6 +1876,7 @@ select.pill{appearance:auto;padding:2px 8px}
     &lt;div class=&quot;tools&quot;&gt;
       &lt;select class=&quot;pill&quot; id=&quot;camSel&quot; aria-label=&quot;카메라 시점&quot;&gt;&lt;/select&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;camReset&quot;&gt;처음 시점&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;qualityBtn&quot;&gt;화질&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;shadowBtn&quot;&gt;그림자&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;soundBtn&quot;&gt;🔇 소리&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;photoBtn&quot;&gt;📷 사진&lt;/button&gt;

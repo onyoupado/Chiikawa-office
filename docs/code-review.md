@@ -17,9 +17,9 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 확실하지 않은 내용은 "추측"이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1569줄): 3D 버전의 모든 로직 (Three.js 장면, 건물·거리, 이동, 욕구, 관계, 과업, 상점, 이벤트, 대화, 에이전트 회의)
+- 3d/app.js (1615줄): 3D 버전의 모든 로직 (Three.js 장면, 건물·거리, 이동, 욕구, 관계, 과업, 상점, 이벤트, 대화, 에이전트 회의)
 - 3d/worklog.js (49줄): 에이전트 역할과 개발 일지 데이터
-- 3d.html (220줄): 3D 버전 화면 구조와 CSS
+- 3d.html (221줄): 3D 버전 화면 구조와 CSS
 - index.html (1129줄): 2D 버전 (한 파일에 HTML·CSS·JS, Claude 업무 지시)
 ```
 
@@ -32,6 +32,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { ROLES, SESSIONS } from "./worklog.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const $ = id => document.getElementById(id);
 const rand = a => a[Math.floor(Math.random() * a.length)];
@@ -48,12 +49,16 @@ function josa(w, pair){
 }
 
 /* ================= renderer, camera, lights ================= */
-let renderer;
-try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
-catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`); throw e; }
+// 화질: 휴대폰은 기본 '보통'(가벼운 조명·낮은 해상도·초당 40장), 컴퓨터는 '고화질'
 const MOBILE = matchMedia("(pointer: coarse)").matches;
-renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.75 : 2));
-renderer.shadowMap.enabled = !MOBILE;
+const QKEY = "chiikawa3d-quality";
+const QUALITY = (() => { try { return localStorage.getItem(QKEY) || (MOBILE ? "mid" : "high"); } catch (e) { return MOBILE ? "mid" : "high"; } })();
+const Q = {low:{name:"가볍게", pr:1, aa:false, fps:30, shadow:false}, mid:{name:"보통", pr:1.4, aa:true, fps:40, shadow:false}, high:{name:"고화질", pr:2, aa:true, fps:0, shadow:true}}[QUALITY] || {name:"보통", pr:1.4, aa:true, fps:40, shadow:false};
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: "high-performance" }); }
+catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`); throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
+renderer.shadowMap.enabled = Q.shadow;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 view.prepend(renderer.domElement);
@@ -87,7 +92,31 @@ const G = {1: new THREE.Group(), 2: new THREE.Group(), 3: new THREE.Group()};
 Object.values(G).forEach(g => scene.add(g));
 const LABELS = {1: [], 2: [], 3: []};
 const MATS = {};
-const mat = (c, o = {}) => { const k = c + JSON.stringify(o); return MATS[k] || (MATS[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o })); };
+// 고화질이 아니면 계산이 가벼운 Lambert 재질을 써요
+const mat = (c, o = {}) => {
+  const k = c + JSON.stringify(o); if (MATS[k]) return MATS[k];
+  if (QUALITY === "high") return MATS[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o });
+  const { roughness, metalness, ...rest } = o; return MATS[k] = new THREE.MeshLambertMaterial({ color: c, ...rest });
+};
+// 움직이지 않는 물체를 재질별로 하나로 합쳐서 그리기 요청을 줄여요
+function mergeStatic(group){
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), buckets = new Map();
+  for (const m of [...group.children]){
+    if (!m.isMesh || m.userData.dyn || m.material.map) continue;
+    if (!buckets.has(m.material)) buckets.set(m.material, []);
+    buckets.get(m.material).push(m);
+  }
+  let before = 0, after = 0;
+  for (const [material, list] of buckets){
+    before += list.length; if (list.length < 2){ after += list.length; continue; }
+    const geos = list.map(m => { let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g = g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld)); for (const a of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(a)) g.deleteAttribute(a); return g; });
+    const merged = mergeGeometries(geos, false); if (!merged){ after += list.length; continue; }
+    const mesh = new THREE.Mesh(merged, material); mesh.castShadow = list.some(m => m.castShadow); mesh.receiveShadow = true; mesh.renderOrder = list[0].renderOrder;
+    list.forEach(m => { group.remove(m); m.geometry.dispose(); }); geos.forEach(g => g.dispose()); group.add(mesh); after++;
+  }
+  return [before, after];
+}
 const GLASS = new THREE.MeshStandardMaterial({ color: "#bfe3ff", transparent: true, opacity: .32, roughness: .1, depthWrite: false });
 function addTo(f, m){ (f === "scene" ? scene : G[f]).add(m); return m; }
 function box(f, x, y, w, h, H, color, lift = 0, material){
@@ -273,6 +302,12 @@ plane(2, 400, 470, 240, 100, "#ffd7e3", .8);
 sofa(2, 400, 560, 160);
 box(2, 470, 490, 90, 40, 16, "#e8d2b4"); cyl(2, 500, 510, 10, 2, "#ffffff", 16);
 box(2, 580, 380, 100, 20, 22, "#e8d2b4");
+```
+
+## 파트 2/14
+
+[파트 2/14] 파일: 3d/app.js (2/7)
+```
 placeAt(canvasPanel(2, 90, 52, (g, w, h) => { g.fillStyle = "#1f2337"; g.fillRect(0, 0, w, h); g.fillStyle = "#ffd36b"; g.font = "bold 10px 'Gowun Dodum', sans-serif"; g.fillText("♪ 오늘의 노래", 12, 30); }), 630, 388, 2, 50);
 box(2, 345, 365, 120, 36, 34, "#e8d2b4"); cyl(2, 370, 383, 12, 2, "#cfe3f3", 34); cyl(2, 420, 383, 9, 2, "#2b2d3a", 34); cyl(2, 445, 383, 9, 2, "#2b2d3a", 34);
 box(2, 470, 362, 40, 40, 90, "#c9d0dc");
@@ -291,12 +326,6 @@ box(3, 330, 50, 120, 46, 40, "#2b2d3a"); box(3, 336, 52, 108, 16, 3, "#ffffff", 
 box(3, 270, 215, 110, 40, 22, "#c9a77e"); box(3, 292, 219, 66, 32, 1, "#ff8fb1", 22); box(3, 325, 219, 33, 16, 1.5, "#6f9fd8", 22); box(3, 292, 235, 33, 16, 1.5, "#f2cf4a", 22);
 box(3, 400, 200, 60, 30, 70, "#c9a77e"); plant(3, 455, 60);
 const screenTex = canvasPanel(3, 370, 110, (g, w, h, t = 0) => {
-```
-
-## 파트 2/14
-
-[파트 2/14] 파일: 3d/app.js (2/7)
-```
   const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, `hsl(${220 + Math.sin(t) * 30},45%,22%)`); gr.addColorStop(1, `hsl(${280 + Math.cos(t) * 30},40%,26%)`);
   g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.textAlign = "center"; g.font = "bold 30px Gaegu, sans-serif"; g.fillText("▶ 치이카와 극장판", w / 2, 55); g.font = "14px 'Gowun Dodum', sans-serif"; g.fillText("상영 중", w / 2, 82); g.textAlign = "left";
 }, 2);
@@ -325,7 +354,7 @@ Object.assign(S3, {
 
 /* night lights: 층마다 따뜻한 조명 두 개 */
 const NIGHT = [];
-for (const f of [1, 2, 3]) for (const x of [300, 820]){
+if (QUALITY !== "low") for (const f of [1, 2, 3]) for (const x of [300, 820]){
   const l = new THREE.PointLight("#ffd9a0", 0, 900, 1); l.position.copy(W(x, CY, f)); l.position.y += 120; addTo(f, l); NIGHT.push(l);
 }
 
@@ -333,7 +362,7 @@ for (const f of [1, 2, 3]) for (const x of [300, 820]){
 const ELEV = {};
 for (const f of [1, 2, 3]){
   box(f, 30, 452, 62, 80, 78, "#aeb7c8");
-  const l = box(f, 36, 532, 25, 2, 62, "#c9d0dc"), r = box(f, 61, 532, 25, 2, 62, "#c9d0dc");
+  const l = box(f, 36, 532, 25, 2, 62, "#c9d0dc"), r = box(f, 61, 532, 25, 2, 62, "#c9d0dc"); l.userData.dyn = r.userData.dyn = true;
   const ind = canvasPanel(f, 26, 10, (g, w, h, t = `${f}F`) => { g.fillStyle = "#1f2337"; g.fillRect(0, 0, w, h); g.fillStyle = "#ffcf66"; g.font = "bold 8px monospace"; g.fillText(t, 7, 8); });
   placeAt(ind, 61, 533.5, f, 70);
   ELEV[f] = {l, r, ind, lx: l.position.x, rx: r.position.x, open: 0, want: 0};
@@ -369,7 +398,8 @@ const CITY = new THREE.Group(); scene.add(CITY);
 const GLASS2 = new THREE.MeshStandardMaterial({ color:"#a9d4ff", transparent:true, opacity:.16, roughness:.05, metalness:.3, depthWrite:false, side:THREE.DoubleSide });
 const FRAME = mat("#5d6578", { metalness:.4, roughness:.4 });
 function facade(f){
-  const y0 = fy(f), H = FH - 8, add = (m, front) => { addTo(f, m); if (front) FRONT.push(m); return m; };
+  const fg = new THREE.Group(); G[f].add(fg); FRONT.push(fg);          // 앞쪽 유리는 한 묶음으로 켜고 꺼요
+  const y0 = fy(f), H = FH - 8, add = (m, front) => { (front ? fg : G[f]).add(m); return m; };
   const sides = [[BX0, BY1, BX1, BY1, true], [BX0, BY0, BX1, BY0, false], [BX0, BY0, BX0, BY1, false], [BX1, BY0, BX1, BY1, false]];
   for (const [x0, z0, x1, z1, front] of sides){
     const horiz = z0 === z1, len = horiz ? x1 - x0 : z1 - z0;
@@ -493,6 +523,12 @@ const TRAITS = {
 const HOME = {rakko:DESK.rakko, chiikawa:DESK.chiikawa, hachiware:DESK.hachiware, usagi:DESK.usagi, momonga:P(1,560,520), kurimanju:P(1,840,200), shisa:P(1,800,525), kani:P(1,915,575)};
 const LINES = {rakko:["오늘도 평화롭군","보고서 확인 중"], chiikawa:["…!","와아…","할 수 있어…!"], hachiware:["오늘 날씨 좋다~","뭐든 해보는 거야!"],
   usagi:["우라!","야하!","푸루루…","하아?"], momonga:["나 귀엽지?","칭찬해줘!"], kurimanju:["하아…","캬~"], shisa:["열심히 할게요~!","와아~"], kani:["…","(사락사락)"]};
+```
+
+## 파트 3/14
+
+[파트 3/14] 파일: 3d/app.js (3/7)
+```
 const ALIAS = {rakko:["랏코","라코","팀장"], chiikawa:["치이카와","치이","치카와"], hachiware:["하치와레","하치"], usagi:["우사기","토끼"], momonga:["모몽가","모몽"], kurimanju:["쿠리만쥬","쿠리만주","쿠리"], shisa:["시사"], kani:["카니"]};
 const VOICE = {chiikawa:880, hachiware:660, usagi:990, rakko:440, momonga:1046, kurimanju:392, shisa:740, kani:587};
 const loader = new THREE.TextureLoader();
@@ -515,12 +551,6 @@ for (const id of Object.keys(HOME)){
   c.gem.scale.y = 1.6; c.obj.add(c.gem);
   c.hatG = new THREE.Group(); c.obj.add(c.hatG);
   CH.push(c);
-```
-
-## 파트 3/14
-
-[파트 3/14] 파일: 3d/app.js (3/7)
-```
 }
 const BY = Object.fromEntries(CH.map(c => [c.id, c]));
 const CREW = CH.slice(0, 4);
@@ -750,6 +780,12 @@ const ACTIONS = {
   study:{name:"풀뽑기 자격증 공부", emo:"📝", only:"chiikawa", at:pick(DESK.chiikawa, S3.board[0]), dur:9, eff:{fun:1, energy:-.6}, skill:"knowledge", lines:["이번엔 꼭 합격…!","외워야 해…","…!"]},
   sing:{name:"노래 부르기", emo:"🎤", only:"hachiware", at:null, dur:7, eff:{fun:6}, skill:"art", aura:{fun:1.2}, lines:["♪ 랄라라~","♬ 오늘도 힘내자~"]},
   ura:{name:"우라! 외치기", emo:"📣", only:"usagi", at:null, dur:5, eff:{fun:8, energy:-1}, anim:"jump", aura:{fun:.6}, lines:["우라!!","야하!","푸루루루루!"]},
+```
+
+## 파트 4/14
+
+[파트 4/14] 파일: 3d/app.js (4/7)
+```
   sword:{name:"검술 수련", emo:"⚔️", only:"rakko", at:pick(S3.sword), dur:9, eff:{energy:-1.5, fun:2}, skill:"fitness", anim:"jump", lines:["하앗!","집중…","한 번 더"]},
   aegyo:{name:"애교 부리기", emo:"🥺", only:"momonga", at:null, partner:true, dur:6, eff:{social:8, fun:3}, skill:"social", lines:["칭찬해줘!","나 귀엽지?","헤헤"]},
   drink:{name:"한 잔 하기", emo:"🍶", only:"kurimanju", at:pick(S1.counter, S3.table), dur:8, eff:{fun:5, hunger:3, energy:-.3}, lines:["캬~","하아… 행복해","안주가 최고야"]},
@@ -771,12 +807,6 @@ for (const c of CH){
   const s = saved?.chars?.[c.id];
   c.needs = s?.needs || Object.fromEntries(NEEDS.map(n => [n.k, 55 + Math.random() * 40]));
   c.lv = s?.lv || 1; c.xp = s?.xp || 0; c.skills = s?.skills || Object.fromEntries(Object.keys(SKILLS).map(k => [k, 0]));
-```
-
-## 파트 4/14
-
-[파트 4/14] 파일: 3d/app.js (4/7)
-```
   c.stats = s?.stats || {}; c.prel = s?.prel ?? 20; c.hat = s?.hat || null; c.chatLog = s?.chatLog || [];
 }
 const mood = c => { const v = NEEDS.map(n => c.needs[n.k]), mn = Math.min(...v), avg = v.reduce((a, b) => a + b, 0) / v.length; return clamp(avg * .7 + mn * .3, 0, 100); };
@@ -1004,6 +1034,12 @@ function buildHat(c){
   c.hatG.clear(); if (!c.hat) return;
   const m3 = (geo, col, y, o) => { const m = new THREE.Mesh(geo, mat(col, o)); m.position.y = y; c.hatG.add(m); return m; };
   if (c.hat === "ribbon"){ const a = m3(new THREE.ConeGeometry(6, 12, 8), "#ff6b9a", 2); a.rotation.z = Math.PI / 2; a.position.x = -7; const b = m3(new THREE.ConeGeometry(6, 12, 8), "#ff6b9a", 2); b.rotation.z = -Math.PI / 2; b.position.x = 7; m3(new THREE.SphereGeometry(3.5, 8, 6), "#ff6b9a", 2); }
+```
+
+## 파트 5/14
+
+[파트 5/14] 파일: 3d/app.js (5/7)
+```
   if (c.hat === "party"){ m3(new THREE.ConeGeometry(10, 26, 16), "#ffd36b", 13); m3(new THREE.SphereGeometry(3, 8, 6), "#ff8fb1", 27); }
   if (c.hat === "flowerpin"){ for (let i = 0; i < 5; i++){ const p = m3(new THREE.SphereGeometry(3.6, 8, 6), "#ffb3c8", 2); p.position.x = 12 + Math.cos(i * 1.26) * 4; p.position.z = Math.sin(i * 1.26) * 4; } m3(new THREE.SphereGeometry(2.5, 8, 6), "#ffe066", 2).position.x = 12; }
   if (c.hat === "chef"){ m3(new THREE.CylinderGeometry(11, 11, 12, 16), "#ffffff", 6); m3(new THREE.SphereGeometry(14, 16, 10), "#ffffff", 16).scale.y = .6; }
@@ -1023,12 +1059,6 @@ $("shop").addEventListener("click", e => {
   const b = e.target.closest(".item"); if (!b || b.disabled) return;
   const {kind, id} = b.dataset;
   if (kind === "decor"){ placing = id; $("sel").hidden = false; $("sel").textContent = `${DECOR[id].emo} ${DECOR[id].name}: 놓을 바닥을 눌러 주세요 (${viewFloor || 1}층)`; if (viewFloor === 0) showFloor(1); view.scrollIntoView({behavior:"smooth", block:"center"}); }
-```
-
-## 파트 5/14
-
-[파트 5/14] 파일: 3d/app.js (5/7)
-```
   if (kind === "up"){ S.coins -= UPGRADES[id].price; S.up[id] = true; addCoins(0); log(`🛠️ ${UPGRADES[id].name} 설치! ${UPGRADES[id].desc}`); }
   if (kind === "hat" && selected){ S.coins -= HATS[id].price; selected.hat = id; buildHat(selected); addCoins(0); say(selected, rand(["어때? 어울려?","와아…!","헤헤"]), 2000); log(`${HATS[id].emo} ${selected.name}에게 ${josa(HATS[id].name, "을를")} 씌웠어요`); }
   $("coins").textContent = `🪙 ${S.coins}`;
@@ -1228,6 +1258,12 @@ const taskPrompt = task => `너는 작은 사무실 팀이야. 아래 업무를 
 @검토
 점수: (1~5 정수)
 한줄평: (40자 이내)`;
+```
+
+## 파트 6/14
+
+[파트 6/14] 파일: 3d/app.js (6/7)
+```
 const demoTask = t => `@제목: ${t.slice(0, 14)}\n@결과물\n## ${t.slice(0, 30)}\n\n> 예시 결과물이에요. 'Claude 연결'에서 키를 넣으면 실제 결과물을 써요.\n\n### 진행 순서\n1. 원하는 결과물의 모양과 분량을 정해요.\n2. 필요한 자료를 자료실에서 모아요.\n3. 초안을 쓰고 우사기가 검토해요.\n4. 랏코가 최종본을 전달해요.\n@검토\n점수: 3\n한줄평: 키를 연결하면 진짜로 일할 수 있어! 야하!`;
 const inl = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 function md(src){
@@ -1254,12 +1290,6 @@ $("taskGo").onclick = async () => {
   try { text = connected() ? await askClaude("", [{role:"user", content:taskPrompt(t)}], 8000) : (await sleep(6000), demoTask(t)); }
   catch (err) { text = null; $("taskOut").innerHTML = `<p class="note" style="color:var(--bad)">${ERRMSG[err?.code] || "오류가 났어요"}. 다시 지시해 주세요.</p>`; }
   taskBusy = false; $("taskGo").disabled = false;
-```
-
-## 파트 6/14
-
-[파트 6/14] 파일: 3d/app.js (6/7)
-```
   CREW.forEach(c => { if (c.cur === "work"){ c.cur = null; c.act = null; c.manual = performance.now() + 5000; } });
   if (!text) return;
   const title = (text.match(/@제목:\s*(.+)/) || [])[1] || t.slice(0, 14);
@@ -1491,6 +1521,12 @@ async function agentMeeting(topic){
   script = script || localMeeting(topic);
   const team = CH.slice(); claim(team); await gather(team);
   for (const l of script.lines) await speak(BY[l.who], l.text);
+```
+
+## 파트 7/14
+
+[파트 7/14] 파일: 3d/app.js (7/7)
+```
   for (const d of script.decisions){ minute(null, `✅ 결정: ${d}`, "head"); }
   const tasks = script.todos.map(t => ({title:t.title, who:t.who, p:0, status:"todo"})); TASKS.push(...tasks); renderBoard();
   for (const t of tasks) minute(BY[t.who], `할 일: ${t.title}`, "todo");
@@ -1520,12 +1556,6 @@ async function standup(){
 setInterval(() => { if (Math.random() < .35) standup(); }, 240000);
 $("logSel").innerHTML = SESSIONS.map((s, i) => `<option value="${i}">${s.date} · ${s.title}</option>`).join("");
 $("replayBtn").onclick = () => playSession(SESSIONS[+$("logSel").value || 0]);
-```
-
-## 파트 7/14
-
-[파트 7/14] 파일: 3d/app.js (7/7)
-```
 $("meetForm").addEventListener("submit", e => { e.preventDefault(); const t = $("meetIn").value.trim(); if (!t) return; $("meetIn").value = ""; agentMeeting(t); });
 
 /* ================= panels ================= */
@@ -1581,10 +1611,16 @@ setInterval(() => { renderStatus(); for (const f of [1, 2, 3]) $("n" + f).textCo
 /* ================= animation loop ================= */
 const clock = new THREE.Clock();
 const SPEED = 120, RIDE = 55;
+let lastFrame = 0;
 function tick(){
-  const dt = Math.min(.05, clock.getDelta()), now = performance.now();
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  if (Q.fps && now - lastFrame < 1000 / Q.fps - 2) return;      // 휴대폰은 초당 그리는 장수를 줄여요
+  lastFrame = now;
+  const dt = Math.min(.1, clock.getDelta());
   S.time = (S.time + dt * 2 * speed) % 1440;
-  if ((tick.t = (tick.t || 0) + dt) > .25){ tick.t = 0; applyTime(); if (G[3].visible) screenTex.redraw(now / 2000); }
+  if ((tick.t = (tick.t || 0) + dt) > .25){ tick.t = 0; applyTime(); }
+  if ((tick.s = (tick.s || 0) + dt) > 1.2){ tick.s = 0; if (G[3].visible && QUALITY !== "low") screenTex.redraw(now / 2000); }
   for (const e of ESC) e.tex.offset.y -= e.dir * dt * 1.2;
   for (const f of [1, 2, 3]){ const E = ELEV[f]; E.open = lerp(E.open, E.want, Math.min(1, dt * 6)); E.l.position.x = E.lx - E.open * 22; E.r.position.x = E.rx + E.open * 22; }
   if (bobObj){ bobObj.position.y = fy(3) + Math.abs(Math.sin(now / 250)) * 10; bobObj.rotation.y += dt; }
@@ -1621,15 +1657,25 @@ function tick(){
   camTick(dt); cityTick(dt);
   controls.update();
   renderer.render(scene, camera); labels.render(scene, camera);
-  requestAnimationFrame(tick);
 }
 
 /* ================= start ================= */
+{ // 정적인 물체 합치기 (처음 한 번)
+  let b = 0, a = 0; for (const g of [G[1], G[2], G[3], CITY, ROOF, ...FRONT]){ const [x, y] = mergeStatic(g); b += x; a += y; }
+  console.info(`[치이카와 오피스] 정적 물체 ${b}개 → ${a}개로 합침 · 화질 ${Q.name}`);
+}
+$("qualityBtn").textContent = `화질: ${Q.name}`;
+$("qualityBtn").onclick = () => {
+  const next = {low:"mid", mid:"high", high:"low"}[QUALITY] || "mid";
+  if (!confirm(`화질을 '${({low:"가볍게", mid:"보통", high:"고화질"})[next]}'(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
+  try { localStorage.setItem(QKEY, next); } catch (e) {}
+  save(); location.reload();
+};
 applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); renderShop(); renderStatus(); connUI();
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent};   // 디버그용
+window.__office = {CH, S, ESC, addCoins, startEvent, renderer};   // 디버그용
 log("출근 완료! 캐릭터를 누르거나 명령을 써 보세요.");
 setTimeout(() => say(BY.hachiware, "오늘도 힘내자~!", 2600), 800);
 ```
@@ -1845,6 +1891,7 @@ select.pill{appearance:auto;padding:2px 8px}
     <div class="tools">
       <select class="pill" id="camSel" aria-label="카메라 시점"></select>
       <button type="button" class="pill" id="camReset">처음 시점</button>
+      <button type="button" class="pill" id="qualityBtn">화질</button>
       <button type="button" class="pill" id="shadowBtn">그림자</button>
       <button type="button" class="pill" id="soundBtn">🔇 소리</button>
       <button type="button" class="pill" id="photoBtn">📷 사진</button>

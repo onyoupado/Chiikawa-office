@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { ROLES, SESSIONS } from "./worklog.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const $ = id => document.getElementById(id);
 const rand = a => a[Math.floor(Math.random() * a.length)];
@@ -19,12 +20,16 @@ function josa(w, pair){
 }
 
 /* ================= renderer, camera, lights ================= */
-let renderer;
-try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
-catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`); throw e; }
+// 화질: 휴대폰은 기본 '보통'(가벼운 조명·낮은 해상도·초당 40장), 컴퓨터는 '고화질'
 const MOBILE = matchMedia("(pointer: coarse)").matches;
-renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.75 : 2));
-renderer.shadowMap.enabled = !MOBILE;
+const QKEY = "chiikawa3d-quality";
+const QUALITY = (() => { try { return localStorage.getItem(QKEY) || (MOBILE ? "mid" : "high"); } catch (e) { return MOBILE ? "mid" : "high"; } })();
+const Q = {low:{name:"가볍게", pr:1, aa:false, fps:30, shadow:false}, mid:{name:"보통", pr:1.4, aa:true, fps:40, shadow:false}, high:{name:"고화질", pr:2, aa:true, fps:0, shadow:true}}[QUALITY] || {name:"보통", pr:1.4, aa:true, fps:40, shadow:false};
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: "high-performance" }); }
+catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`); throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
+renderer.shadowMap.enabled = Q.shadow;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 view.prepend(renderer.domElement);
@@ -58,7 +63,31 @@ const G = {1: new THREE.Group(), 2: new THREE.Group(), 3: new THREE.Group()};
 Object.values(G).forEach(g => scene.add(g));
 const LABELS = {1: [], 2: [], 3: []};
 const MATS = {};
-const mat = (c, o = {}) => { const k = c + JSON.stringify(o); return MATS[k] || (MATS[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o })); };
+// 고화질이 아니면 계산이 가벼운 Lambert 재질을 써요
+const mat = (c, o = {}) => {
+  const k = c + JSON.stringify(o); if (MATS[k]) return MATS[k];
+  if (QUALITY === "high") return MATS[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o });
+  const { roughness, metalness, ...rest } = o; return MATS[k] = new THREE.MeshLambertMaterial({ color: c, ...rest });
+};
+// 움직이지 않는 물체를 재질별로 하나로 합쳐서 그리기 요청을 줄여요
+function mergeStatic(group){
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), buckets = new Map();
+  for (const m of [...group.children]){
+    if (!m.isMesh || m.userData.dyn || m.material.map) continue;
+    if (!buckets.has(m.material)) buckets.set(m.material, []);
+    buckets.get(m.material).push(m);
+  }
+  let before = 0, after = 0;
+  for (const [material, list] of buckets){
+    before += list.length; if (list.length < 2){ after += list.length; continue; }
+    const geos = list.map(m => { let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g = g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld)); for (const a of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(a)) g.deleteAttribute(a); return g; });
+    const merged = mergeGeometries(geos, false); if (!merged){ after += list.length; continue; }
+    const mesh = new THREE.Mesh(merged, material); mesh.castShadow = list.some(m => m.castShadow); mesh.receiveShadow = true; mesh.renderOrder = list[0].renderOrder;
+    list.forEach(m => { group.remove(m); m.geometry.dispose(); }); geos.forEach(g => g.dispose()); group.add(mesh); after++;
+  }
+  return [before, after];
+}
 const GLASS = new THREE.MeshStandardMaterial({ color: "#bfe3ff", transparent: true, opacity: .32, roughness: .1, depthWrite: false });
 function addTo(f, m){ (f === "scene" ? scene : G[f]).add(m); return m; }
 function box(f, x, y, w, h, H, color, lift = 0, material){
@@ -290,7 +319,7 @@ Object.assign(S3, {
 
 /* night lights: 층마다 따뜻한 조명 두 개 */
 const NIGHT = [];
-for (const f of [1, 2, 3]) for (const x of [300, 820]){
+if (QUALITY !== "low") for (const f of [1, 2, 3]) for (const x of [300, 820]){
   const l = new THREE.PointLight("#ffd9a0", 0, 900, 1); l.position.copy(W(x, CY, f)); l.position.y += 120; addTo(f, l); NIGHT.push(l);
 }
 
@@ -298,7 +327,7 @@ for (const f of [1, 2, 3]) for (const x of [300, 820]){
 const ELEV = {};
 for (const f of [1, 2, 3]){
   box(f, 30, 452, 62, 80, 78, "#aeb7c8");
-  const l = box(f, 36, 532, 25, 2, 62, "#c9d0dc"), r = box(f, 61, 532, 25, 2, 62, "#c9d0dc");
+  const l = box(f, 36, 532, 25, 2, 62, "#c9d0dc"), r = box(f, 61, 532, 25, 2, 62, "#c9d0dc"); l.userData.dyn = r.userData.dyn = true;
   const ind = canvasPanel(f, 26, 10, (g, w, h, t = `${f}F`) => { g.fillStyle = "#1f2337"; g.fillRect(0, 0, w, h); g.fillStyle = "#ffcf66"; g.font = "bold 8px monospace"; g.fillText(t, 7, 8); });
   placeAt(ind, 61, 533.5, f, 70);
   ELEV[f] = {l, r, ind, lx: l.position.x, rx: r.position.x, open: 0, want: 0};
@@ -334,7 +363,8 @@ const CITY = new THREE.Group(); scene.add(CITY);
 const GLASS2 = new THREE.MeshStandardMaterial({ color:"#a9d4ff", transparent:true, opacity:.16, roughness:.05, metalness:.3, depthWrite:false, side:THREE.DoubleSide });
 const FRAME = mat("#5d6578", { metalness:.4, roughness:.4 });
 function facade(f){
-  const y0 = fy(f), H = FH - 8, add = (m, front) => { addTo(f, m); if (front) FRONT.push(m); return m; };
+  const fg = new THREE.Group(); G[f].add(fg); FRONT.push(fg);          // 앞쪽 유리는 한 묶음으로 켜고 꺼요
+  const y0 = fy(f), H = FH - 8, add = (m, front) => { (front ? fg : G[f]).add(m); return m; };
   const sides = [[BX0, BY1, BX1, BY1, true], [BX0, BY0, BX1, BY0, false], [BX0, BY0, BX0, BY1, false], [BX1, BY0, BX1, BY1, false]];
   for (const [x0, z0, x1, z1, front] of sides){
     const horiz = z0 === z1, len = horiz ? x1 - x0 : z1 - z0;
@@ -1516,10 +1546,16 @@ setInterval(() => { renderStatus(); for (const f of [1, 2, 3]) $("n" + f).textCo
 /* ================= animation loop ================= */
 const clock = new THREE.Clock();
 const SPEED = 120, RIDE = 55;
+let lastFrame = 0;
 function tick(){
-  const dt = Math.min(.05, clock.getDelta()), now = performance.now();
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  if (Q.fps && now - lastFrame < 1000 / Q.fps - 2) return;      // 휴대폰은 초당 그리는 장수를 줄여요
+  lastFrame = now;
+  const dt = Math.min(.1, clock.getDelta());
   S.time = (S.time + dt * 2 * speed) % 1440;
-  if ((tick.t = (tick.t || 0) + dt) > .25){ tick.t = 0; applyTime(); if (G[3].visible) screenTex.redraw(now / 2000); }
+  if ((tick.t = (tick.t || 0) + dt) > .25){ tick.t = 0; applyTime(); }
+  if ((tick.s = (tick.s || 0) + dt) > 1.2){ tick.s = 0; if (G[3].visible && QUALITY !== "low") screenTex.redraw(now / 2000); }
   for (const e of ESC) e.tex.offset.y -= e.dir * dt * 1.2;
   for (const f of [1, 2, 3]){ const E = ELEV[f]; E.open = lerp(E.open, E.want, Math.min(1, dt * 6)); E.l.position.x = E.lx - E.open * 22; E.r.position.x = E.rx + E.open * 22; }
   if (bobObj){ bobObj.position.y = fy(3) + Math.abs(Math.sin(now / 250)) * 10; bobObj.rotation.y += dt; }
@@ -1556,14 +1592,24 @@ function tick(){
   camTick(dt); cityTick(dt);
   controls.update();
   renderer.render(scene, camera); labels.render(scene, camera);
-  requestAnimationFrame(tick);
 }
 
 /* ================= start ================= */
+{ // 정적인 물체 합치기 (처음 한 번)
+  let b = 0, a = 0; for (const g of [G[1], G[2], G[3], CITY, ROOF, ...FRONT]){ const [x, y] = mergeStatic(g); b += x; a += y; }
+  console.info(`[치이카와 오피스] 정적 물체 ${b}개 → ${a}개로 합침 · 화질 ${Q.name}`);
+}
+$("qualityBtn").textContent = `화질: ${Q.name}`;
+$("qualityBtn").onclick = () => {
+  const next = {low:"mid", mid:"high", high:"low"}[QUALITY] || "mid";
+  if (!confirm(`화질을 '${({low:"가볍게", mid:"보통", high:"고화질"})[next]}'(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
+  try { localStorage.setItem(QKEY, next); } catch (e) {}
+  save(); location.reload();
+};
 applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); renderShop(); renderStatus(); connUI();
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent};   // 디버그용
+window.__office = {CH, S, ESC, addCoins, startEvent, renderer};   // 디버그용
 log("출근 완료! 캐릭터를 누르거나 명령을 써 보세요.");
 setTimeout(() => say(BY.hachiware, "오늘도 힘내자~!", 2600), 800);
