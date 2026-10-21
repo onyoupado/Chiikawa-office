@@ -13,6 +13,7 @@
   --desk:#ffffff; --desk-edge:#c3cfe6; --screen:#eaf3ff; --screen-ink:#43608f; --wood:#e8d2b4; --sofa:#ff9fb8; --metal:#c9d0dc; --steel:#aeb7c8;
   --pink:#ff8fb1; --blue:#6f9fd8; --blue-soft:#e1ecfa; --yellow:#f2cf4a; --yellow-soft:#fdf3c9;
   --ok:#3f9d6b; --ok-soft:#dcf2e5; --bad:#d0505f; --leaf:#7cc29a;
+  --wall-face:#e4e9f3; --wall-side:#d3dae8; --sky1:#eaf2ff; --sky2:#f8f3ff; --rug:#ffd7e3; --tilt:38deg;
   --f-display:"Gaegu","Comic Sans MS",cursive; --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif; --f-mono:"Nanum Gothic Coding",ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -21,14 +22,14 @@
   --r-meet:#2b2850; --r-work:#1f2d4f; --r-pantry:#3a3423; --r-elev:#262c40; --r-wc:#1d3833; --r-lounge:#3d2537; --r-archive:#352d27;
   --desk:#323a5e; --desk-edge:#46507c; --screen:#16213f; --screen-ink:#9fc2ff; --wood:#6b5640; --sofa:#b85b78; --metal:#59627e; --steel:#4a5370;
   --pink:#ff9cbb; --blue:#8db6ea; --blue-soft:#25365a; --yellow:#f5d65e; --yellow-soft:#463d1e;
-  --ok:#6cd09a; --ok-soft:#1c3b2c; --bad:#ff8592; --leaf:#5c9c78; color-scheme:dark}}
+  --ok:#6cd09a; --ok-soft:#1c3b2c; --bad:#ff8592; --leaf:#5c9c78; --wall-face:#323a60; --wall-side:#2a3152; --sky1:#151a33; --sky2:#1d1838; --rug:#5a3346; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8;
   --corridor:#202642; --corridor2:#1c2240; --wall:#4d5885;
   --r-meet:#2b2850; --r-work:#1f2d4f; --r-pantry:#3a3423; --r-elev:#262c40; --r-wc:#1d3833; --r-lounge:#3d2537; --r-archive:#352d27;
   --desk:#323a5e; --desk-edge:#46507c; --screen:#16213f; --screen-ink:#9fc2ff; --wood:#6b5640; --sofa:#b85b78; --metal:#59627e; --steel:#4a5370;
   --pink:#ff9cbb; --blue:#8db6ea; --blue-soft:#25365a; --yellow:#f5d65e; --yellow-soft:#463d1e;
-  --ok:#6cd09a; --ok-soft:#1c3b2c; --bad:#ff8592; --leaf:#5c9c78; color-scheme:dark}
+  --ok:#6cd09a; --ok-soft:#1c3b2c; --bad:#ff8592; --leaf:#5c9c78; --wall-face:#323a60; --wall-side:#2a3152; --sky1:#151a33; --sky2:#1d1838; --rug:#5a3346; color-scheme:dark}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -49,66 +50,83 @@ h1 small{display:block;font-family:var(--f-body);font-weight:400;font-size:.9rem
 .status .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pink),var(--blue),var(--yellow));transition:width .6s ease}
 .status .clock{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.9rem;color:var(--muted)}
 
-/* ---------- floor plan (1000 x 640 logical units) ---------- */
-.mapwrap{overflow-x:auto;border-radius:20px;border:2px solid var(--line);background:var(--corridor)}
-.map{position:relative;min-width:760px;aspect-ratio:1000/640;container-type:inline-size;overflow:hidden;
-  background:repeating-linear-gradient(90deg,var(--corridor) 0 4cqw,var(--corridor2) 4cqw 8cqw)}
-.room{position:absolute;border:.6cqw solid var(--wall);border-radius:1.2cqw}
-.room .rl{position:absolute;left:1.2cqw;top:.6cqw;font-family:var(--f-display);font-weight:700;font-size:1.9cqw;line-height:1.2;color:var(--ink);opacity:.8}
+/* ---------- floor plan: 3D diorama (1000 x 640 logical units per floor, 100cqw = 1000) ---------- */
+.mapwrap{overflow-x:auto;border-radius:20px;border:2px solid var(--line);background:linear-gradient(var(--sky1),var(--sky2));padding:10px 10px 0}
+.floors{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 4px}
+.floors button{font:inherit;font-family:var(--f-display);font-weight:700;font-size:1.05rem;border:2px solid var(--line);background:var(--panel);color:var(--muted);border-radius:999px;padding:2px 14px;cursor:pointer}
+.floors button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--yellow-soft)}
+.floors .cnt{font-family:var(--f-body);font-weight:400;font-size:.75rem;margin-left:4px}
+.stage{position:relative;min-width:760px;perspective:2200px;perspective-origin:50% -20%;container-type:inline-size}
+.map{position:relative;width:100%;aspect-ratio:1000/640;transform-style:preserve-3d;transform-origin:50% 100%;
+  transform:translateY(-10cqw) rotateX(var(--tilt)) scale(.94);margin-bottom:-8cqw;
+  background:repeating-linear-gradient(90deg,var(--corridor) 0 4cqw,var(--corridor2) 4cqw 8cqw);border-radius:1.2cqw;
+  box-shadow:0 0 0 .6cqw var(--wall);transition:transform .7s cubic-bezier(.4,.1,.2,1),visibility 0s}
+.map.f2{position:absolute;inset:0 0 auto 0}
+.map.off{visibility:hidden;pointer-events:none;transition:transform .7s cubic-bezier(.4,.1,.2,1),visibility 0s .7s}
+.map.f2.off{transform:translateY(-10cqw) rotateX(var(--tilt)) translateZ(30cqw) scale(.94)}
+.map.f1.off{transform:translateY(-10cqw) rotateX(var(--tilt)) translateZ(-30cqw) scale(.94)}
+.map *{transform-style:preserve-3d}
+.room{position:absolute;border:.3cqw solid var(--wall);border-radius:.4cqw}
 .r-meeting{background:var(--r-meet)}.r-work{background:var(--r-work)}.r-pantry{background:var(--r-pantry)}
-.r-elevator{background:var(--r-elev)}.r-restroom{background:var(--r-wc)}.r-lounge{background:var(--r-lounge)}.r-archive{background:var(--r-archive)}
-.door{position:absolute;background:var(--corridor);z-index:1}
+.r-elevator{background:var(--r-elev)}.r-restroom,.r-bath{background:var(--r-wc)}.r-lounge,.r-living{background:var(--r-lounge)}.r-archive{background:var(--r-archive)}
+.r-bed1{background:#fdeef3}.r-bed2{background:#fdf6dc}.r-bed3{background:#f1e8de}.r-bed4{background:#fbeede}.r-bed5{background:#e9f0fb}
+.room::after{content:"";position:absolute;inset:6%;border-radius:2cqw;background:repeating-linear-gradient(0deg,transparent 0 1.6cqw,rgba(0,0,0,.025) 1.6cqw 1.7cqw)}
+.wall{position:absolute;background:var(--wall-face);box-shadow:inset 0 .35cqw 0 var(--wall)}
+.wall.h{transform-origin:50% 100%;transform:rotateX(-90deg)}
+.wall.v{transform-origin:100% 50%;transform:rotateY(90deg);background:var(--wall-side)}
+.wall.front{opacity:.55}
+.wall .rl,.flab{position:absolute;font-family:var(--f-display);font-weight:700;font-size:2.1cqw;line-height:1;color:var(--ink);opacity:.85;white-space:nowrap}
+.wall .rl{left:1.2cqw;top:.9cqw}
+.blk>.fr.elevdoor{filter:none;background:#2a2e40;overflow:hidden;border-radius:.4cqw .4cqw 0 0}
+.elevdoor s{position:absolute;left:30%;right:30%;top:3%;height:12%;background:#1f2337;color:#ffcf66;font-family:var(--f-mono);font-size:1.1cqw;text-decoration:none;display:grid;place-items:center;border-radius:.3cqw}
+.elevdoor b{position:absolute;top:20%;bottom:0;width:50%;background:var(--steel);transition:transform .6s ease}
+.elevdoor .l{left:0;border-right:.15cqw solid var(--wall)}.elevdoor .r{right:0;border-left:.15cqw solid var(--wall)}
+.elevdoor.open .l{transform:translateX(-100%)}.elevdoor.open .r{transform:translateX(100%)}
 .corr-label{position:absolute;font-family:var(--f-display);font-size:1.5cqw;color:var(--muted);letter-spacing:.3em}
-.f{position:absolute;border-radius:.8cqw}
-.table{background:var(--wood);border:.3cqw solid var(--desk-edge);border-radius:2cqw}
-.wb{background:var(--panel);border:.35cqw solid var(--steel);border-radius:.6cqw;padding:.5cqw .9cqw;overflow:hidden;font-size:1.1cqw;line-height:1.35}
+.blk{position:absolute}
+.blk>i{position:absolute;display:block;background:var(--c);border:.15cqw solid var(--e)}
+.blk>.tp{inset:0;transform:translateZ(var(--h));border-radius:.5cqw}
+.blk>.fr{left:0;right:0;bottom:0;height:var(--h);transform-origin:50% 100%;transform:rotateX(-90deg);filter:brightness(.86)}
+.blk>.sd{top:0;bottom:0;left:100%;width:var(--h);transform-origin:0 50%;transform:rotateY(-90deg);filter:brightness(.74)}
+.blk>.sl{top:0;bottom:0;right:100%;width:var(--h);transform-origin:100% 50%;transform:rotateY(90deg);filter:brightness(.8)}
+.panel3d{position:absolute;transform-origin:50% 100%}
+.wb{background:var(--panel);border:.35cqw solid var(--steel);border-radius:.6cqw;padding:.5cqw .9cqw;overflow:hidden;font-size:1.1cqw;line-height:1.35;transform:rotateX(-62deg)}
 .wb b{display:block;font-family:var(--f-display);font-size:1.6cqw;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wb ul{margin:.3cqw 0 0;padding-left:1.3cqw}
-.desk{background:var(--desk);border:.3cqw solid var(--desk-edge);border-radius:.6cqw;padding:.4cqw;display:flex;flex-direction:column;gap:.3cqw}
-.mon{flex:1;min-height:0;background:var(--screen);border:.2cqw solid var(--desk-edge);border-radius:.4cqw;padding:.2cqw .4cqw;font-family:var(--f-mono);font-size:.78cqw;line-height:1.25;color:var(--screen-ink);overflow:hidden;white-space:pre-wrap;word-break:break-all}
-.np{font-size:.95cqw;line-height:1;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mon{background:var(--screen);border:.25cqw solid var(--desk-edge);border-radius:.4cqw;padding:.2cqw .4cqw;font-family:var(--f-mono);font-size:.78cqw;line-height:1.25;color:var(--screen-ink);overflow:hidden;white-space:pre-wrap;word-break:break-all;transform:rotateX(-68deg)}
+.np{position:absolute;inset:auto .3cqw .3cqw;font-size:.95cqw;line-height:1;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:translateZ(calc(var(--h) + .1cqw))}
 .desk.on .np{color:var(--ink);font-weight:700}
 .desk.on .mon::after{content:"▍";animation:blink .7s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
-.machine{background:var(--steel);border:.3cqw solid var(--wall)}
-.machine::after{content:"";position:absolute;left:35%;bottom:12%;width:30%;height:22%;background:var(--panel);border-radius:0 0 .5cqw .5cqw}
-.fridge{background:var(--metal);border:.3cqw solid var(--wall)}
-.fridge::after{content:"";position:absolute;left:0;right:0;top:38%;border-top:.3cqw solid var(--wall)}
-.counter{background:var(--wood);border:.3cqw solid var(--desk-edge)}
-.stall{background:var(--panel);border:.3cqw solid var(--wall);border-bottom:none;border-radius:.6cqw .6cqw 0 0}
-.stall::after{content:"";position:absolute;right:15%;top:45%;width:.6cqw;height:.6cqw;border-radius:50%;background:var(--wall)}
-.sign{font-family:var(--f-display);font-weight:700;font-size:1.6cqw;color:var(--blue);text-align:center}
-.sofa{background:var(--sofa);border:.3cqw solid var(--wall);border-radius:1.6cqw 1.6cqw .8cqw .8cqw}
-.bean{background:var(--yellow);border:.3cqw solid var(--wall);border-radius:50%}
-.tv{background:#1f2337;border:.4cqw solid var(--wall);color:#9fe3c0;font-family:var(--f-mono);font-size:.9cqw;display:grid;place-items:center}
-.plant{background:var(--leaf);border-radius:50% 50% 40% 40%;border:.3cqw solid var(--wall)}
-.shelf{background:var(--wood);border:.3cqw solid var(--wall);background-image:repeating-linear-gradient(transparent 0 30%,var(--wall) 30% 34%)}
-.printer{background:var(--metal);border:.3cqw solid var(--wall)}
-.elev{background:#2a2e40;border:.4cqw solid var(--wall);overflow:hidden;border-radius:.6cqw .6cqw 0 0}
-.elev i{position:absolute;top:0;bottom:0;width:50%;background:var(--steel);transition:transform .6s ease;border-left:.15cqw solid var(--wall)}
-.elev .l{left:0;border-left:none;border-right:.15cqw solid var(--wall)}.elev .r{right:0}
-.elev.open .l{transform:translateX(-100%)}.elev.open .r{transform:translateX(100%)}
-.ind{background:#1f2337;color:#ffcf66;font-family:var(--f-mono);font-size:1.1cqw;display:grid;place-items:center;border-radius:.4cqw}
-.water{background:var(--blue-soft);border:.3cqw solid var(--wall);border-radius:.6cqw .6cqw .3cqw .3cqw}
+.tv{background:#1f2337;border:.4cqw solid var(--wall);color:#9fe3c0;font-family:var(--f-mono);font-size:.9cqw;display:grid;place-items:center;transform:rotateX(-90deg)}
+.sign{font-family:var(--f-display);font-weight:700;font-size:1.6cqw;color:var(--blue);text-align:center;transform:rotateX(-90deg)}
+.rug{position:absolute;border-radius:50%;background:var(--rug);opacity:.7}
+.pillow{position:absolute;left:12%;right:12%;top:6%;height:20%;background:#fff;border-radius:.8cqw;transform:translateZ(calc(var(--h) + .6cqw));border:.15cqw solid var(--e)}
+.blanket{position:absolute;left:4%;right:4%;top:34%;bottom:4%;border-radius:.6cqw;transform:translateZ(calc(var(--h) + .3cqw));border:.15cqw solid var(--e)}
+.glass{position:absolute;background:rgba(150,200,240,.35);border:.25cqw solid var(--wall);transform-origin:50% 100%;transform:rotateX(-90deg)}
 
-.mate{position:absolute;width:5.6%;aspect-ratio:1;transform:translate(-50%,-85%);transition:opacity .4s}
-.mate .body{width:100%;height:100%}
+.mate{position:absolute;width:5.6cqw;aspect-ratio:1;transform-origin:50% 100%;transform:translateZ(var(--z,.2cqw)) translate(-50%,-92%) rotateX(calc(-1 * var(--tilt)));transition:opacity .4s}
+.mate .body{width:100%;height:100%;position:relative}
 .mate svg,.mate img{width:100%;height:100%;display:block;overflow:visible;transition:transform .15s}
-.mate .body{position:relative}.mate img{position:absolute;left:0;bottom:0;height:auto}
+.mate img{position:absolute;left:0;bottom:0;height:auto}
 .mate.left svg,.mate.left img{transform:scaleX(-1)}
+.mate.sleep{--z:2.4cqw}
+.mate.sleep .body{transform:rotate(-78deg) translate(10%,-20%)}
 .review .mini img{width:100%;height:100%;object-fit:contain}
 .mate.walk .body{animation:waddle .28s ease-in-out infinite alternate}
 .mate.work .body{animation:bob .45s ease-in-out infinite alternate}
 .mate.cheer .body{animation:hop .5s ease-out 3}
 .mate.gone{opacity:0}
 .mate .nm{position:absolute;left:50%;top:96%;transform:translateX(-50%);font-size:1.05cqw;line-height:1;white-space:nowrap;background:var(--panel);border:.15cqw solid var(--line);border-radius:1cqw;padding:.15cqw .5cqw}
+.mate.sleep .nm{display:none}
 @keyframes waddle{from{transform:rotate(-7deg) translateY(0)}to{transform:rotate(7deg) translateY(-6%)}}
 @keyframes bob{to{transform:translateY(-6%) rotate(-2deg)}}
 @keyframes hop{50%{transform:translateY(-22%)}}
-.bub{position:absolute;z-index:3000;transform:translate(-50%,-100%) scale(.6);margin-top:-5.4cqw;opacity:0;pointer-events:none;
+.bub{position:absolute;opacity:0;pointer-events:none;transform-origin:50% 100%;
+  transform:translateZ(var(--z,.2cqw)) translate(-50%,-100%) rotateX(calc(-1 * var(--tilt))) translateY(-6.4cqw) scale(.6);
   background:var(--panel);border:.25cqw solid var(--ink);border-radius:1.4cqw;padding:.35cqw 1cqw;font-family:var(--f-display);font-weight:700;font-size:1.5cqw;line-height:1.2;white-space:nowrap;transition:opacity .25s,transform .25s}
 .bub::after{content:"";position:absolute;left:50%;bottom:-.75cqw;width:1.1cqw;height:1.1cqw;background:var(--panel);border-right:.25cqw solid var(--ink);border-bottom:.25cqw solid var(--ink);transform:translateX(-50%) rotate(45deg)}
-.bub.show{opacity:1;transform:translate(-50%,-100%) scale(1)}
+.bub.show{opacity:1;transform:translateZ(var(--z,.2cqw)) translate(-50%,-100%) rotateX(calc(-1 * var(--tilt))) translateY(-6.4cqw) scale(1)}
 .maphint{font-size:.78rem;color:var(--muted);margin:-8px 0 0}
 @media (min-width:800px){.maphint{display:none}}
 
@@ -176,7 +194,16 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
 
   <div class="status"><span class="lbl">지금 하는 일</span><span class="now" id="now">대기 중이에요</span><div class="bar"><i id="bar"></i></div><span class="clock" id="clock"></span></div>
 
-  <div class="mapwrap"><div class="map" id="map" role="img" aria-label="회의실, 업무 공간, 탕비실, 엘리베이터, 화장실, 휴게실, 자료실이 복도로 이어진 사무실 지도"></div></div>
+  <div class="mapwrap">
+    <div class="floors" role="group" aria-label="층 선택">
+      <button type="button" data-f="1" aria-pressed="true">1F 사무실<span class="cnt" id="cnt1"></span></button>
+      <button type="button" data-f="2" aria-pressed="false">2F 기숙사<span class="cnt" id="cnt2"></span></button>
+    </div>
+    <div class="stage">
+      <div class="map f1" id="map1" role="img" aria-label="1층 사무실: 회의실, 업무 공간, 탕비실, 엘리베이터, 화장실, 휴게실, 자료실"></div>
+      <div class="map f2 off" id="map2" role="img" aria-label="2층 기숙사: 캐릭터별 방, 샤워실, 공용 거실, 엘리베이터"></div>
+    </div>
+  </div>
   <p class="maphint">지도는 옆으로 밀어서 볼 수 있어요.</p>
 
   <div class="grid2">
@@ -262,96 +289,181 @@ const EXTRA = {
 for (const k of Object.keys(EXTRA)) SVG[k] = "";
 for (const k of Object.keys(SVG)){ const svg = SVG[k]; SVG[k] = `<img src="img/${k}.png" alt="" draggable="false" onerror="this.outerHTML=this.dataset.f" data-f='${svg.replace(/'/g,"&#39;")}'>`; }
 
-/* ---------- floor plan ---------- */
+/* ---------- floor plans (1F 사무실, 2F 기숙사) ---------- */
 const CY = 320; // corridor centre line
-const ROOMS = {
-  meeting:{name:"회의실",x:20,y:20,w:280,h:270,door:160},
-  work:{name:"업무 공간",x:300,y:20,w:400,h:270,door:500},
-  pantry:{name:"탕비실",x:700,y:20,w:280,h:270,door:840},
-  elevator:{name:"엘리베이터",x:20,y:350,w:150,h:270,door:95},
-  restroom:{name:"화장실",x:170,y:350,w:160,h:270,door:250},
-  lounge:{name:"휴게실",x:330,y:350,w:370,h:270,door:515},
-  archive:{name:"자료실",x:700,y:350,w:280,h:270,door:840},
+const FLOORS = {
+  1:{ rooms:{
+    meeting:{name:"회의실",x:20,y:20,w:280,h:270,door:160},
+    work:{name:"업무 공간",x:300,y:20,w:400,h:270,door:500},
+    pantry:{name:"탕비실",x:700,y:20,w:280,h:270,door:840},
+    elevator:{name:"엘리베이터",x:20,y:350,w:150,h:270,door:132},
+    restroom:{name:"화장실",x:170,y:350,w:160,h:270,door:250},
+    lounge:{name:"휴게실",x:330,y:350,w:370,h:270,door:515},
+    archive:{name:"자료실",x:700,y:350,w:280,h:270,door:840},
+  }},
+  2:{ rooms:{
+    bed1:{name:"치이카와·하치와레 방",x:20,y:20,w:250,h:270,door:145},
+    bed2:{name:"우사기 방",x:270,y:20,w:210,h:270,door:375},
+    bed3:{name:"랏코 방",x:480,y:20,w:220,h:270,door:590},
+    bed4:{name:"쿠리만쥬·시사 방",x:700,y:20,w:280,h:270,door:840},
+    elevator:{name:"엘리베이터",x:20,y:350,w:150,h:270,door:132},
+    bath:{name:"샤워실",x:170,y:350,w:160,h:270,door:250},
+    living:{name:"공용 거실",x:330,y:350,w:370,h:270,door:515},
+    bed5:{name:"모몽가·카니 방",x:700,y:350,w:280,h:270,door:840},
+  }},
 };
 const isTop = r => r.y < CY;
 const inner = r => isTop(r) ? r.y + r.h - 22 : r.y + 22;
 const SPOT = {
-  desk:{rakko:{x:420,y:110},chiikawa:{x:580,y:110},hachiware:{x:420,y:220},usagi:{x:580,y:220}},
-  meet:[{x:90,y:125},{x:230,y:125},{x:90,y:215},{x:230,y:215}],
-  coffee:{x:765,y:150}, fridge:{x:915,y:150}, snack:[{x:800,y:240},{x:880,y:240}],
+  desk:{rakko:{x:420,y:100},chiikawa:{x:580,y:100},hachiware:{x:420,y:205},usagi:{x:580,y:205}},
+  meet:[{x:90,y:130},{x:230,y:130},{x:90,y:235},{x:230,y:235}],
+  coffee:{x:765,y:150}, fridge:{x:915,y:170}, snack:[{x:800,y:240},{x:880,y:240}],
   wc:[{x:212,y:500},{x:290,y:500}],
   sofa:[{x:420,y:545},{x:480,y:545}], tv:{x:630,y:470}, bean:{x:385,y:455},
   shelf:[{x:770,y:480},{x:905,y:480}], printer:{x:840,y:550},
-  elevFront:{x:95,y:505}, elevIn:{x:95,y:585},
+  elevFront:{x:122,y:578}, elevIn:{x:61,y:505},
   water:{x:690,y:322},
-  meetX:[{x:45,y:170},{x:275,y:170},{x:120,y:265},{x:200,y:265}],
+  meetX:[{x:45,y:180},{x:275,y:180},{x:120,y:275},{x:200,y:275}],
   loungeX:[{x:560,y:470},{x:600,y:575},{x:450,y:480},{x:650,y:540}],
+};
+// 2층: 각자 침대, 샤워실, 거실
+const BED = {chiikawa:{x:80,y:200}, hachiware:{x:210,y:200}, usagi:{x:375,y:200}, rakko:{x:590,y:200},
+  kurimanju:{x:770,y:200}, shisa:{x:910,y:200}, momonga:{x:770,y:560}, kani:{x:910,y:560}};
+const DORM = {
+  shower:[{x:212,y:520},{x:290,y:520}], sofa:[{x:430,y:540},{x:500,y:540}], tv:{x:620,y:470},
+  kitchen:[{x:380,y:440},{x:440,y:440}], window:{x:600,y:575},
 };
 const LOUNGE = [SPOT.sofa[0], SPOT.sofa[1], SPOT.bean, SPOT.tv];
 
-const map = $("map");
-const U = (x,y,w,h) => `left:${x/10}%;top:${y/6.4}%;` + (w!=null ? `width:${w/10}%;height:${h/6.4}%;` : "");
-function add(cls, x,y,w,h, html="", z){
-  const d = document.createElement("div"); d.className = cls; d.style.cssText = U(x,y,w,h) + `z-index:${z ?? Math.round(y+h)}`;
-  d.innerHTML = html; map.appendChild(d); return d;
+const MAPS = {1:$("map1"), 2:$("map2")};
+const cq = v => v/10 + "cqw";  // logical units -> cqw (map width = 1000 units = 100cqw)
+const U = (x,y,w,h) => `left:${cq(x)};top:${cq(y)};` + (w!=null ? `width:${cq(w)};height:${cq(h)};` : "");
+function add(fl, cls, x,y,w,h, html=""){
+  const d = document.createElement("div"); d.className = cls; d.style.cssText = U(x,y,w,h);
+  d.innerHTML = html; MAPS[fl].appendChild(d); return d;
 }
-for (const [k,r] of Object.entries(ROOMS)){
-  add(`room r-${k}`, r.x,r.y,r.w,r.h, `<span class="rl">${r.name}</span>`, 0);
-  add("door", r.door-32, isTop(r) ? r.y+r.h-8 : r.y-2, 64, 10, "", 1);
+// 높이가 있는 가구 블록: 윗면 + 앞면 + 옆면
+function block(fl, x,y,w,h, H, c, e="var(--wall)", cls="", html=""){
+  const d = add(fl, "blk " + cls, x,y,w,h, `<i class="sl"></i><i class="sd"></i><i class="fr"></i><i class="tp"></i>${html}`);
+  d.style.setProperty("--h", cq(H)); d.style.setProperty("--c", c); d.style.setProperty("--e", e); return d;
 }
-add("corr-label", 360, 306, null, null, "복 도", 1).style.zIndex = 1;
-// meeting room
-add("f table", 70,140,180,48);
-add("f wb", 40,34,240,66, `<b id="wbT">오늘의 업무</b><ul id="wbL"><li>업무를 기다리는 중</li></ul>`, 5);
-// desks
+// 세워진 판(화이트보드, TV, 엘리베이터 문): 바닥의 (x,y) 선에서 위로 h만큼
+const stand = (fl, cls, x,y,w,h, html="", lift=0) => { const d = add(fl, "panel3d " + cls, x, y-h, w, h, html); if (lift) d.style.translate = `0 0 ${cq(lift)}`; return d; };
+
+const WH = 70, WF = 16; // back/side wall height, front (cut-away) wall height
+function walls(fl, r, label){
+  const segH = (y, front, door) => {
+    const hh = front ? WF : WH, cls = "wall h" + (front ? " front" : "");
+    const parts = door ? [[r.x, door-34], [door+34, r.x+r.w]] : [[r.x, r.x+r.w]];
+    return parts.map(([a,b]) => add(fl, cls, a, y-hh, b-a, hh));
+  };
+  const top = segH(r.y, false, isTop(r) ? 0 : r.door);
+  segH(r.y+r.h, true, isTop(r) ? r.door : 0);
+  add(fl, "wall v", r.x-WH, r.y, WH, r.h);
+  const right = add(fl, "wall v", r.x+r.w-WH, r.y, WH, r.h); right.style.background = "var(--wall-face)";
+  if (isTop(r)) top[0].innerHTML = `<span class="rl">${label}</span>`;
+  else add(fl, "flab", r.x+14, r.y+16, null, null, label);   // 앞쪽 방은 문이 뒷벽에 있어서 바닥에 이름을 써요
+}
+for (const fl of [1,2]){
+  for (const [k,r] of Object.entries(FLOORS[fl].rooms)){ add(fl, `room r-${k}`, r.x,r.y,r.w,r.h); walls(fl, r, r.name); }
+  add(fl, "corr-label", 360, 308, null, null, fl === 1 ? "복 도" : "기 숙 사 복 도");
+}
+
+/* 1F furniture */
+block(1, 70,150,180,50, 26, "var(--wood)", "var(--desk-edge)");
+stand(1, "wb", 40,92,240,90, `<b id="wbT">오늘의 업무</b><ul id="wbL"><li>업무를 기다리는 중</li></ul>`);
 const NAMES = {rakko:"랏코 팀장", chiikawa:"치이카와", hachiware:"하치와레", usagi:"우사기"};
 for (const [id,s] of Object.entries(SPOT.desk)){
-  add("f desk", s.x-58, s.y-6, 116, 52, `<div class="mon" id="mon-${id}"></div><div class="np" id="np-${id}">${NAMES[id]} · 휴식</div>`).id = "desk-"+id;
+  const d = block(1, s.x-58, s.y-60, 116, 44, 28, "var(--desk)", "var(--desk-edge)", "desk", `<div class="np" id="np-${id}">${NAMES[id]} · 휴식</div>`);
+  d.id = "desk-"+id;
+  const m = document.createElement("div"); m.className = "panel3d mon"; m.id = "mon-"+id;
+  m.style.cssText = `left:12%;width:76%;bottom:55%;height:${cq(50)};transform:translateZ(${cq(28)}) rotateX(-68deg)`;
+  d.appendChild(m);
 }
-// pantry
-add("f machine", 738,48,54,62); add("f fridge", 885,36,62,92); add("f counter", 800,48,70,40);
-add("f table", 780,252,120,30);
-// elevator
-const elev = add("f elev", 52,560,86,58, `<i class="l"></i><i class="r"></i>`, 600);
-const ind = add("f ind", 78,532,34,20, "1F", 600);
-// restroom
-add("f stall", 182,522,62,96, "", 520); add("f stall", 260,522,62,96, "", 520);
-add("f sign", 230,372,40,24, "WC", 380);
-// lounge
-add("f sofa", 380,560,150,46); add("f bean", 360,470,52,36,"",440);
-add("f tv", 595,372,74,46, "♪ ON AIR"); add("f plant", 662,568,30,40);
-// archive
-add("f shelf", 728,372,92,64); add("f shelf", 862,372,92,64); add("f printer", 806,572,70,34);
-// corridor props
-add("f water", 676,296,28,22, "", 296); add("f plant", 952,298,24,26, "", 296);
+block(1, 738,40,54,50, 60, "var(--steel)");                 // coffee machine
+block(1, 885,30,62,70, 110, "var(--metal)");                // fridge
+block(1, 800,40,70,40, 34, "var(--wood)", "var(--desk-edge)");
+block(1, 780,262,120,26, 26, "var(--wood)", "var(--desk-edge)");
+// 엘리베이터: 문이 앞면에 달린 상자
+const elevEl = {}, indEl = {};
+for (const fl of [1,2]){
+  const fr = block(fl, 30,452,62,80, 78, "var(--steel)").querySelector(".fr");
+  fr.classList.add("elevdoor"); fr.innerHTML = `<s>${fl}F</s><b class="l"></b><b class="r"></b>`;
+  elevEl[fl] = fr; indEl[fl] = fr.querySelector("s");
+}
+block(1, 182,530,62,80, 70, "var(--panel)"); block(1, 260,530,62,80, 70, "var(--panel)");
+stand(1, "sign", 230,352,40,24, "WC", 40);
+block(1, 380,565,150,40, 26, "var(--sofa)"); block(1, 380,595,150,12, 46, "var(--sofa)");
+block(1, 360,465,52,40, 18, "var(--yellow)");
+stand(1, "tv", 595,352,74,46, "♪ ON AIR", 20);
+block(1, 662,575,28,28, 46, "var(--leaf)");
+block(1, 728,365,92,40, 100, "var(--wood)"); block(1, 862,365,92,40, 100, "var(--wood)");
+block(1, 806,575,70,32, 30, "var(--metal)");
+block(1, 676,298,22,18, 36, "var(--blue-soft)"); block(1, 952,300,22,22, 40, "var(--leaf)");
 
-const roomAt = p => { for (const [k,r] of Object.entries(ROOMS)) if (p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h) return k; return null; };
-function route(from, to){
-  const a = roomAt(from), b = roomAt(to), pts = [];
+/* 2F furniture: 침대(이불 색은 주인 따라), 샤워실, 거실 */
+const BLANKET = {chiikawa:"#ffd3df", hachiware:"#cfe0f5", usagi:"#fde9a8", rakko:"#e3cdb3", kurimanju:"#f2d7a8", shisa:"#ffc9a8", momonga:"#d8ecf7", kani:"#ffc4cf"};
+for (const [id,b] of Object.entries(BED)){
+  const d = block(2, b.x-38, b.y-80, 76, 120, 22, "#fffaf2", "var(--wall)", "", `<div class="pillow"></div><div class="blanket" style="background:${BLANKET[id]}"></div>`);
+  d.title = NAMES[id] || EXTRA[id].name;
+}
+block(2, 120,40,60,34, 40, "var(--wood)"); block(2, 420,40,50,34, 40, "var(--wood)");   // nightstands
+block(2, 640,40,44,30, 90, "var(--wood)"); block(2, 830,40,50,30, 40, "var(--wood)"); block(2, 930,372,40,30, 40, "var(--wood)");
+add(2, "rug", 40,215,200,60); add(2, "rug", 300,215,150,60); add(2, "rug", 520,215,150,60);
+stand(2, "glass", 180,600,64,90); stand(2, "glass", 258,600,64,90);
+block(2, 186,535,52,60, 4, "var(--blue-soft)"); block(2, 264,535,52,60, 4, "var(--blue-soft)");
+stand(2, "sign", 230,352,60,24, "SHOWER", 40);
+add(2, "rug", 400,470,240,100);
+block(2, 400,565,160,40, 26, "var(--sofa)"); block(2, 400,595,160,12, 46, "var(--sofa)");
+block(2, 470,490,90,40, 16, "var(--wood)", "var(--desk-edge)");
+stand(2, "tv", 585,352,90,52, "♪ 오늘의 노래", 20);
+block(2, 345,365,120,36, 34, "var(--wood)", "var(--desk-edge)"); block(2, 470,362,40,40, 90, "var(--metal)");
+block(2, 662,575,28,28, 46, "var(--leaf)");
+
+const roomAt = (fl, p) => { for (const [k,r] of Object.entries(FLOORS[fl].rooms)) if (p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h) return k; return null; };
+function route(fl, from, to){
+  const R = FLOORS[fl].rooms, a = roomAt(fl, from), b = roomAt(fl, to), pts = [];
   if (a && a === b) return [to];
-  if (a){ const r = ROOMS[a]; pts.push({x:r.door,y:inner(r)}, {x:r.door,y:CY}); } else pts.push({x:from.x,y:CY});
-  if (b){ const r = ROOMS[b]; pts.push({x:r.door,y:CY}, {x:r.door,y:inner(r)}); }
+  if (a){ const r = R[a]; pts.push({x:r.door,y:inner(r)}, {x:r.door,y:CY}); } else pts.push({x:from.x,y:CY});
+  if (b){ const r = R[b]; pts.push({x:r.door,y:CY}, {x:r.door,y:inner(r)}); }
   pts.push(to); return pts;
 }
+
+/* floor tabs */
+let viewFloor = 1;
+function showFloor(fl){
+  viewFloor = fl;
+  MAPS[1].classList.toggle("off", fl !== 1); MAPS[2].classList.toggle("off", fl !== 2);
+  document.querySelectorAll(".floors button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.f === fl)));
+}
+document.querySelector(".floors").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showFloor(+b.dataset.f); });
 
 /* ---------- crew & movement ---------- */
 Object.entries(EXTRA).forEach(([k,v]) => NAMES[k] = v.name);
 const ALL = ["rakko","chiikawa","hachiware","usagi",...Object.keys(EXTRA)].map(id => {
   const s = SPOT.desk[id] || EXTRA[id].home;
-  const c = {id, name:NAMES[id].replace(" 팀장",""), x:s.x, y:s.y, home:s, path:[], resolve:null, job:null, away:false, bubT:0};
+  const c = {id, name:NAMES[id].replace(" 팀장",""), x:s.x, y:s.y, home:s, floor:1, path:[], resolve:null, job:null, away:false, bubT:0};
   c.el = document.createElement("div"); c.el.className = "mate";
   c.el.innerHTML = `<div class="body">${SVG[id]}</div><span class="nm">${c.name}</span>`;
   c.bub = document.createElement("div"); c.bub.className = "bub";
-  map.append(c.el, c.bub); return c;
+  MAPS[1].append(c.el, c.bub); return c;
 });
 const CREW = ALL.slice(0,4), EXTRAS = ALL.slice(4);
 const M = Object.fromEntries(ALL.map(c => [c.id, c]));
-function place(c){
-  c.el.style.left = c.bub.style.left = c.x/10 + "%";
-  c.el.style.top = c.bub.style.top = c.y/6.4 + "%";
-  c.el.style.zIndex = Math.round(c.y);
+function counts(){
+  const n2 = ALL.filter(c => c.floor === 2).length;
+  $("cnt1").textContent = `· ${ALL.length - n2}명`; $("cnt2").textContent = `· ${n2}명`;
 }
-ALL.forEach(place);
+function setFloor(c, fl, at){
+  c.floor = fl; MAPS[fl].append(c.el, c.bub);
+  if (at){ c.x = at.x; c.y = at.y; place(c); }
+  counts();
+}
+function place(c){
+  c.el.style.left = c.bub.style.left = cq(c.x);
+  c.el.style.top = c.bub.style.top = cq(c.y);
+}
+ALL.forEach(place); counts();
 const SPEED = REDUCED ? 5000 : 170;
 let lastT = performance.now();
 function frame(t){
@@ -370,8 +482,8 @@ function frame(t){
 requestAnimationFrame(frame);
 function walk(c, to){
   if (c.resolve){ const r = c.resolve; c.resolve = null; r(false); }
-  c.path = route({x:c.x, y:c.y}, to);
-  c.el.classList.add("walk"); c.el.classList.remove("work");
+  c.path = route(c.floor, {x:c.x, y:c.y}, to);
+  c.el.classList.add("walk"); c.el.classList.remove("work", "sleep"); c.el.style.removeProperty("--z"); c.bub.style.removeProperty("--z");
   return new Promise(res => { c.resolve = res; });
 }
 function say(c, text, ms=2600){
@@ -386,22 +498,48 @@ function setWork(c, on, label){
 function screen(id, text){ const lines = text.split("\n").filter(Boolean); $("mon-"+id).textContent = lines.slice(-5).join("\n").slice(-200); }
 const claim = c => { const tag = {}; c.job = tag; return () => c.job === tag; };
 
-/* elevator */
-const openElev = () => elev.classList.add("open");
-const closeElev = () => elev.classList.remove("open");
+/* elevator: 1F 사무실 <-> 2F 기숙사 */
+const openElev = fl => elevEl[fl].classList.add("open");
+const closeElev = fl => elevEl[fl].classList.remove("open");
+const setInd = t => { indEl[1].textContent = indEl[2].textContent = t; };
 function summon(c){
-  if (!c.away) return;
-  c.away = false; c.el.classList.remove("gone"); ind.textContent = "1F"; openElev(); setTimeout(closeElev, 1800);
+  c.el.classList.remove("sleep");
+  if (!c.away && c.floor === 1) return;
+  c.away = false; c.el.classList.remove("gone");
+  setFloor(c, 1, SPOT.elevIn); setInd("1F"); openElev(1); setTimeout(() => closeElev(1), 1800);
 }
-async function ride(c, ok){
-  if (!await walk(c, SPOT.elevFront) || !ok()) return;
-  openElev(); await sleep(700); if (!ok()) return;
-  if (!await walk(c, SPOT.elevIn) || !ok()) return;
-  c.away = true; c.el.classList.add("gone"); await sleep(500); closeElev();
-  for (const f of ["2F","3F","4F","5F","4F","3F","2F","1F"]){ await sleep(700); if (!ok() || !c.away) return; ind.textContent = f; }
-  openElev(); c.away = false; c.el.classList.remove("gone"); await sleep(500);
-  if (!ok()) return; say(c, rand(["다녀왔어~","옥상 바람 좋다","…!"]), 2000);
-  await walk(c, SPOT.elevFront); closeElev();
+async function ride(c, ok, to){
+  const from = c.floor;
+  if (!await walk(c, SPOT.elevFront) || !ok()) return false;
+  openElev(from); await sleep(700); if (!ok()) return false;
+  if (!await walk(c, SPOT.elevIn) || !ok()) return false;
+  c.away = true; c.el.classList.add("gone"); await sleep(500); closeElev(from);
+  await sleep(1200); if (!ok() || !c.away) return false;
+  setFloor(c, to, SPOT.elevIn); setInd(to + "F");
+  openElev(to); c.away = false; c.el.classList.remove("gone"); await sleep(500);
+  if (!ok()) return false;
+  const r = await walk(c, SPOT.elevFront); closeElev(to); return r && ok();
+}
+// 기숙사 다녀오기: 낮잠, 샤워, 거실에서 쉬기
+async function dorm(c, ok){
+  say(c, rand(["잠깐 올라갈게~","기숙사 다녀올게","졸려…"]), 1800);
+  if (!await ride(c, ok, 2)) return;
+  const r = Math.random();
+  if (r < .5){
+    if (!await walk(c, BED[c.id]) || !ok()) return;
+    c.el.classList.add("sleep"); c.el.style.setProperty("--z", cq(24)); c.bub.style.setProperty("--z", cq(24));
+    say(c, "Zzz…", 0); await sleep(9000 + Math.random()*7000); if (!ok()) return;
+    c.el.classList.remove("sleep"); say(c, rand(["잘 잤다~","으음…","개운해!"]), 2000);
+  } else if (r < .75){
+    if (!await walk(c, rand(DORM.shower)) || !ok()) return;
+    say(c, rand(["샤워 중~♪","뽀득뽀득","따끈따끈…"]), 3000); await sleep(6000); if (!ok()) return;
+  } else {
+    if (!await walk(c, rand([...DORM.sofa, DORM.tv, ...DORM.kitchen, DORM.window])) || !ok()) return;
+    say(c, rand(["거실 최고…","간식 먹을까","이 노래 좋다~","창밖 구경"]), 2600); await sleep(6000 + Math.random()*4000); if (!ok()) return;
+  }
+  say(c, "", 0);
+  if (!await ride(c, ok, 1)) return;
+  say(c, rand(["다녀왔어~","다시 힘내자","…!"]), 2000);
 }
 
 /* idle wandering (no tokens: all local) */
@@ -416,14 +554,14 @@ const PLACES = [
   {w:2, at:()=>rand(SPOT.shelf), lines:["자료 찾는 중…","이 책 재밌겠다"]},
   {w:1, at:()=>SPOT.printer, lines:["출력 중…","종이 걸렸다…!"]},
   {w:1, at:()=>SPOT.water, lines:["물 한 잔~","꿀꺽꿀꺽"]},
-  {w:1, elevator:true},
+  {w:2, dorm:true},
 ];
 const DESK_LINES = {rakko:["오늘도 평화롭군","서류 정리 끝","보고서 확인 중"], chiikawa:["…!","와아…","할 수 있어…!"], hachiware:["오늘 날씨 좋다~","뭐든 해보는 거야!","노래 부를까~?"], usagi:["푸루루루루","하아?","야하!","우라!"]};
 const USAGI_LINES = ["우라!","야하!","푸루루…","하아?"];
 function pickPlace(){ const tot = PLACES.reduce((s,p)=>s+p.w,0); let r = Math.random()*tot; for (const p of PLACES){ r -= p.w; if (r <= 0) return p; } return PLACES[0]; }
 async function wander(c){
   const ok = claim(c), p = pickPlace();
-  if (p.elevator){ say(c, "잠깐 다녀올게~", 1800); await ride(c, ok); }
+  if (p.dorm) await dorm(c, ok);
   else {
     if (!await walk(c, p.at()) || !ok()) return;
     say(c, c.id === "usagi" && Math.random() < .5 ? rand(USAGI_LINES) : EXTRA[c.id] && Math.random() < .5 ? rand(EXTRA[c.id].lines) : rand(p.lines), 2600);
