@@ -109,6 +109,18 @@ details.panel summary{cursor:pointer;font-family:var(--f-display);font-weight:70
 .rlab{font-family:var(--f-display);font-weight:700;font-size:15px;color:#2d3149;background:rgba(255,255,255,.78);border-radius:8px;padding:0 6px;pointer-events:none;white-space:nowrap}
 .err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:#2d3149;background:rgba(255,255,255,.92);z-index:7}
 footer{font-size:.75rem;color:var(--muted);text-align:center}
+select.pill{appearance:auto;padding:2px 8px}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+@media (max-width:700px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.bcol{background:var(--bg);border-radius:12px;padding:6px;min-height:70px;display:flex;flex-direction:column;gap:5px}
+.bcol h3{margin:0;font-size:.75rem;color:var(--muted);font-weight:400;display:flex;justify-content:space-between}
+.task{display:flex;gap:6px;align-items:center;background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:4px 6px}
+.task img{width:26px;height:26px;object-fit:contain;flex:none}.task>div{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.task b{font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.task small{font-size:.68rem;color:var(--muted)}
+.task.done{border-color:var(--ok)}.task.doing{border-color:var(--pink)}
+.minutes{margin-top:10px;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:4px;border-top:2px dashed var(--line);padding-top:8px}
+.mline{display:flex;gap:6px;align-items:flex-start;font-size:.85rem}.mline img{width:22px;height:22px;object-fit:contain;flex:none}.mline b{flex:none;font-size:.8rem}
+.mline.head{color:var(--muted);font-size:.78rem}.mline.todo span{color:var(--blue)}
 </style>
 <script type="importmap">
 {"imports":{
@@ -121,7 +133,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
 <div class="wrap">
   <header>
     <h1>치이카와 오피스 3D<small>3층 건물에서 치이카와 친구들이 일하고, 놀고, 자요. 캐릭터를 누르면 상태창과 대화가 열려요.</small></h1>
-    <a href="./">← 2D 사무실로 돌아가기</a>
+    <span class="row"><a href="./">← 2D 사무실</a><a href="review.html">🔍 코드 검수 묶음</a></span>
   </header>
 
   <div class="view" id="view">
@@ -135,6 +147,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
       </div>
     </div>
     <div class="tools">
+      <select class="pill" id="camSel" aria-label="카메라 시점"></select>
       <button type="button" class="pill" id="camReset">처음 시점</button>
       <button type="button" class="pill" id="shadowBtn">그림자</button>
       <button type="button" class="pill" id="soundBtn">🔇 소리</button>
@@ -160,6 +173,15 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
     <section class="panel" id="status"></section>
     <section class="panel" id="quests"></section>
   </div>
+
+  <section class="panel" id="agentPanel">
+    <h2>🤖 에이전트 회의 · 개발 현황</h2>
+    <p class="note" style="margin-top:0">캐릭터 한 명 한 명이 역할을 맡은 에이전트예요. 실제로 한 개발 작업을 다시 보거나, 주제를 주고 회의를 열면 회의실에 모여 의견을 나누고 할 일을 정한 뒤 자리로 가서 일해요. 업무 시간에는 가끔 알아서 짧은 아침 회의도 해요.</p>
+    <div class="row"><select class="field" id="logSel" aria-label="개발 일지" style="flex:1 1 220px"></select><button class="btn ghost" type="button" id="replayBtn">작업 다시 보기</button></div>
+    <form class="cmd" id="meetForm" style="margin-top:8px"><input id="meetIn" autocomplete="off" placeholder="회의 주제. 예: 사무실 이벤트를 더 재밌게 만들기" aria-label="회의 주제"><button class="btn" type="submit">회의 열기</button></form>
+    <div class="board" id="board"></div>
+    <div class="minutes" id="minutes" aria-live="polite"><p class="note">회의록이 여기에 적혀요.</p></div>
+  </section>
 
   <section class="panel chat" id="chat" hidden>
     <div class="shead"><img id="chatImg" alt=""><div><h2 id="chatName">대화</h2><div class="trait" id="chatSub"></div></div><button type="button" class="x" id="chatClose" aria-label="대화 닫기">✕</button></div>

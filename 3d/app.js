@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { ROLES, SESSIONS } from "./worklog.js";
 
 const $ = id => document.getElementById(id);
 const rand = a => a[Math.floor(Math.random() * a.length)];
@@ -33,9 +34,9 @@ view.appendChild(labels.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#dfeaff");
-const camera = new THREE.PerspectiveCamera(40, 1, 5, 6000);
+const camera = new THREE.PerspectiveCamera(40, 1, 5, 9000);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.maxPolarAngle = 1.3; controls.minDistance = 220; controls.maxDistance = 3000;
+controls.enableDamping = true; controls.maxPolarAngle = 1.5; controls.minDistance = 160; controls.maxDistance = 3600;
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 function resize(){
   const w = view.clientWidth, h = view.clientHeight;
@@ -49,6 +50,7 @@ Object.assign(sun.shadow.camera, { left: -720, right: 720, top: 480, bottom: -48
 sun.shadow.bias = -0.0008; scene.add(sun); scene.add(sun.target);
 
 /* ================= world helpers ================= */
+const BX0 = -12, BX1 = 1192, BY0 = -12, BY1 = 652;            // 건물 외곽
 const CX = 590, CY = 320, FH = 150;               // 논리 좌표 x 0~1180, y 0~640, 층 높이 150
 const fy = f => (f - 1) * FH;
 const W = (x, y, f = 1) => new THREE.Vector3(x - CX, fy(f), y - CY);
@@ -132,7 +134,7 @@ const HOLE = {2:{x0:1015,x1:1125,y0:40,y1:292}, 3:{x0:1015,x1:1125,y0:338,y1:586
 const WALL = "#d6dcea", WH = 60, WT = 6;
 function slab(f){
   const T = 8, c = "#e9edf4";
-  if (f === 1){ plane(1, -60, -60, 1300, 760, "#dfe5ee", 0); return; }
+  if (f === 1){ plane(1, BX0, BY0, BX1 - BX0, BY1 - BY0, "#dfe5ee", 0); return; }
   const h = HOLE[f];
   const parts = [[0,0,990,640],[990,0,h.x0-990,640],[h.x1,0,1180-h.x1,640],[h.x0,0,h.x1-h.x0,h.y0],[h.x0,h.y1,h.x1-h.x0,640-h.y1]];
   for (const [x, y, w, hh] of parts) box(f, x, y, w, hh, T, c, -T);
@@ -325,6 +327,103 @@ for (const e of ESC){
   label(e.f0, `${up ? "▲" : "▼"} ${e.f1}층`, e.lane, e.y0 + (e.y0 < e.y1 ? -14 : 14), 6);
 }
 
+/* ================= glass building exterior & street ================= */
+const FRONT = [], STREETLIGHTS = [];
+const ROOF = new THREE.Group(); scene.add(ROOF);
+const CITY = new THREE.Group(); scene.add(CITY);
+const GLASS2 = new THREE.MeshStandardMaterial({ color:"#a9d4ff", transparent:true, opacity:.16, roughness:.05, metalness:.3, depthWrite:false, side:THREE.DoubleSide });
+const FRAME = mat("#5d6578", { metalness:.4, roughness:.4 });
+function facade(f){
+  const y0 = fy(f), H = FH - 8, add = (m, front) => { addTo(f, m); if (front) FRONT.push(m); return m; };
+  const sides = [[BX0, BY1, BX1, BY1, true], [BX0, BY0, BX1, BY0, false], [BX0, BY0, BX0, BY1, false], [BX1, BY0, BX1, BY1, false]];
+  for (const [x0, z0, x1, z1, front] of sides){
+    const horiz = z0 === z1, len = horiz ? x1 - x0 : z1 - z0;
+    const g = new THREE.Mesh(new THREE.BoxGeometry(horiz ? len : 2, H, horiz ? 2 : len), GLASS2);
+    g.position.copy(W(horiz ? (x0 + x1) / 2 : x0, horiz ? z0 : (z0 + z1) / 2, f)); g.position.y = y0 + H / 2; g.renderOrder = 2; add(g, front);
+    for (let s = 0; s <= len; s += 60){                         // 세로 창틀
+      const m = new THREE.Mesh(new THREE.BoxGeometry(3, H, 3), FRAME);
+      m.position.copy(W(horiz ? x0 + s : x0, horiz ? z0 : z0 + s, f)); m.position.y = y0 + H / 2; add(m, front);
+    }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(horiz ? len + 6 : 6, 8, horiz ? 6 : len + 6), mat("#e4e8f0"));   // 층 띠
+    band.position.copy(W(horiz ? (x0 + x1) / 2 : x0, horiz ? z0 : (z0 + z1) / 2, f)); band.position.y = y0 - 4; band.castShadow = true; add(band, front);
+  }
+}
+[1, 2, 3].forEach(facade);
+{ // 지붕과 옥상 간판 (건물 전체를 볼 때만)
+  const r = new THREE.Mesh(new THREE.BoxGeometry(BX1 - BX0 + 10, 10, BY1 - BY0 + 10), mat("#e4e8f0")); r.position.set((BX0 + BX1) / 2 - CX, fy(4) - 3, (BY0 + BY1) / 2 - CY); r.castShadow = true; ROOF.add(r);
+  const sign = canvasPanel("scene", 320, 60, (g, w, h) => { g.fillStyle = "#2d3149"; g.fillRect(0, 0, w, h); g.fillStyle = "#ffd36b"; g.font = "bold 34px Gaegu, sans-serif"; g.textAlign = "center"; g.fillText("CHIIKAWA OFFICE", w / 2, 42); });
+  scene.remove(sign); sign.position.set(0, fy(4) + 34, BY1 - CY - 40); ROOF.add(sign);
+  for (const x of [-140, 140]){ const p = new THREE.Mesh(new THREE.BoxGeometry(6, 30, 6), FRAME); p.position.set(x, fy(4) + 15, BY1 - CY - 40); ROOF.add(p); }
+}
+// 도시: 논리 좌표 y 652 아래(앞쪽)로 인도·도로를 깔아요
+const cityBox = (x, y, w, h, H, c, lift = 0, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, H, h), m || mat(c)); b.position.set(x + w / 2 - CX, lift + H / 2, y + h / 2 - CY); b.castShadow = b.receiveShadow = true; CITY.add(b); return b; };
+const cityPlane = (x, y, w, h, c, lift = .2) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat(c)); p.rotation.x = -Math.PI / 2; p.position.set(x + w / 2 - CX, lift, y + h / 2 - CY); p.receiveShadow = true; CITY.add(p); return p; };
+const cityPanel = (w, h, draw) => { const m = canvasPanel("scene", w, h, draw); scene.remove(m); CITY.add(m); return m; };
+cityPlane(-1600, -1200, 4400, 3000, "#cdd5c3", -.6);                 // 땅
+cityPlane(-260, 652, 1700, 18, "#e8e2d6", .1);                      // 건물 앞 마당
+cityPlane(-1600, 670, 4400, 110, "#d7d9de", .3);                    // 인도
+cityBox(-1600, 778, 4400, 4, 4, "#b8bcc6");                         // 연석
+cityPlane(-1600, 782, 4400, 170, "#4a4f5c", .25);                   // 도로
+for (let x = -1600; x < 2800; x += 90) cityBox(x, 864, 50, 4, .6, "#f2f2f2");      // 중앙 점선
+cityBox(-1600, 790, 4400, 3, .6, "#f2cf4a"); cityBox(-1600, 941, 4400, 3, .6, "#f2f2f2");
+for (let i = 0; i < 8; i++) cityBox(1240, 790 + i * 20, 90, 10, .6, "#f4f4f4");    // 횡단보도
+cityPlane(-1600, 952, 4400, 80, "#d7d9de", .3);
+for (const x of [-600, -200, 1500, 1900]) cityBox(x, 1060, 260, 160, 140 + (x % 3) * 40, ["#c9d6e8", "#e8d6c9", "#d6e8d1"][Math.abs(x) % 3]);   // 건너편 건물
+// 정문
+cityBox(1040, 652, 110, 4, 70, null, 0, GLASS2); cityBox(1030, 646, 130, 40, 4, "#5d6578", 82);
+{ const s = cityPanel(110, 18, (g, w, h) => { g.fillStyle = "#2d3149"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "bold 12px Gaegu, sans-serif"; g.textAlign = "center"; g.fillText("치이카와 오피스", w / 2, 13); }); s.position.set(1095 - CX, 96, 666 - CY); }
+// 가로수
+function streetTree(x, y){
+  cityBox(x - 14, y - 14, 28, 28, .8, "#8a7a66");
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(4, 6, 50, 8), mat("#8a5a3a")); t.position.set(x - CX, 25, y - CY); t.castShadow = true; CITY.add(t);
+  const l = new THREE.Mesh(new THREE.IcosahedronGeometry(30, 1), mat("#6fbf8a")); l.position.set(x - CX, 70, y - CY); l.castShadow = true; CITY.add(l);
+}
+for (let x = -500; x <= 1700; x += 160) if (Math.abs(x - 180) > 120 && Math.abs(x - 780) > 110) streetTree(x, 760);
+for (let x = -400; x <= 1700; x += 200) streetTree(x, 990);
+// 가로등
+for (let x = -420; x <= 1700; x += 320){
+  cityBox(x - 3, 772, 6, 6, 90, "#5d6578");
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(6, 10, 8), new THREE.MeshStandardMaterial({ color:"#fff3c4", emissive:"#ffd36b", emissiveIntensity:.1 }));
+  bulb.position.set(x - CX, 92, 790 - CY); CITY.add(bulb); STREETLIGHTS.push(bulb);
+}
+// 버스 정류장
+cityBox(700, 700, 160, 34, 4, "#5d6578", 70); cityBox(700, 700, 160, 3, 66, null, 0, GLASS2);
+for (const x of [702, 852]) cityBox(x, 728, 6, 6, 70, "#5d6578");
+cityBox(720, 712, 110, 16, 16, "#c9a77e");
+{ const s = cityPanel(64, 40, (g, w, h) => { g.fillStyle = "#2b7de9"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "bold 9px 'Gowun Dodum', sans-serif"; g.fillText("🚌 버스 정류장", 5, 13); g.fillText("치이카와 오피스 앞", 5, 25); g.font = "8px monospace"; g.fillText("101  202  303", 5, 36); });
+  s.position.set(880 - CX, 70, 760 - CY); cityBox(878, 756, 4, 4, 50, "#5d6578"); }
+// 지하철 입구
+cityBox(120, 690, 130, 70, 1, "#2b2d3a", .2);
+for (let i = 0; i < 6; i++) cityBox(130, 700 + i * 9, 110, 9, 1, "#8a93a8", -i * 4 + .4);
+cityBox(118, 688, 4, 74, 28, "#7cc29a"); cityBox(248, 688, 4, 74, 28, "#7cc29a"); cityBox(118, 688, 134, 4, 28, "#7cc29a");
+cityBox(112, 684, 146, 82, 3, null, 62, GLASS2);
+for (const x of [114, 250]) for (const y of [686, 760]) cityBox(x, y, 4, 4, 62, "#5d6578");
+{ const s = cityPanel(84, 30, (g, w, h) => { g.fillStyle = "#3f9d6b"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "bold 11px 'Gowun Dodum', sans-serif"; g.fillText("🚇 치이카와역", 6, 14); g.font = "9px 'Gowun Dodum', sans-serif"; g.fillText("1번 출구", 6, 26); });
+  s.position.set(185 - CX, 82, 767 - CY); }
+// 움직이는 차와 버스
+const CARS = [];
+function car(col, lane, speed, x, bus = false){
+  const g = new THREE.Group(), L = bus ? 150 : 70, Hh = bus ? 50 : 22;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(L, Hh, bus ? 40 : 34), mat(col)); body.position.y = Hh / 2 + 8; body.castShadow = true; g.add(body);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(bus ? L - 10 : 40, bus ? 14 : 16, bus ? 38 : 30), new THREE.MeshStandardMaterial({ color:"#bfe3ff", transparent:true, opacity:.75 }));
+  top.position.y = bus ? Hh - 2 : Hh + 14; g.add(top);
+  for (const dx of [-L / 3, L / 3]) for (const dz of [-18, 18]){ const w = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 6, 12), mat("#222")); w.rotation.x = Math.PI / 2; w.position.set(dx, 7, dz); g.add(w); }
+  g.position.set(x - CX, 0, lane - CY); if (speed < 0) g.rotation.y = Math.PI; CITY.add(g);
+  CARS.push({g, speed, bus, wait:0, stopped:false}); return g;
+}
+car("#ff8fb1", 905, 130, -400); car("#6f9fd8", 905, 160, 900); car("#f2cf4a", 825, -140, 1500); car("#7cc29a", 825, -110, 300);
+car("#2b7de9", 905, 90, -900, true);
+function cityTick(dt){
+  for (const c of CARS){
+    if (c.wait > 0){ c.wait -= dt; continue; }
+    c.g.position.x += c.speed * dt;
+    const x = c.g.position.x + CX;
+    if (c.bus && !c.stopped && x > 760 && x < 800){ c.wait = 4; c.stopped = true; }
+    if (x > 2600){ c.g.position.x = -1500 - CX; c.stopped = false; }
+    if (x < -1500) c.g.position.x = 2600 - CX;
+  }
+}
+
 /* ================= routing ================= */
 const roomAt = (f, p) => { for (const [k, r] of Object.entries(FLOORS[f].rooms)) if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return k; return null; };
 function route(f, from, to){
@@ -463,28 +562,68 @@ async function walkTo(c, p){
   return walk(c, p);
 }
 
-/* ================= view / floors ================= */
+/* ================= view / floors / camera ================= */
 let viewFloor = 1;
 const visibleChar = c => viewFloor === 0 || c.floor === viewFloor || (c.ride && (c.ride.e.f0 === viewFloor || c.ride.e.f1 === viewFloor));
 function applyView(){
   for (const f of [1, 2, 3]){ G[f].visible = viewFloor === 0 || viewFloor === f; LABELS[f].forEach(o => o.visible = viewFloor === f); }
   for (const e of ESC) e.group.visible = viewFloor === 0 || viewFloor === e.f0 || viewFloor === e.f1;
+  // 한 층만 볼 때는 앞쪽 유리와 지붕을 숨겨서 안이 잘 보이게 해요
+  FRONT.forEach(m => m.visible = viewFloor === 0); ROOF.visible = viewFloor === 0;
   document.querySelectorAll("#floors button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.f === viewFloor)));
 }
-let camLift = 0;
+const baseTarget = () => new THREE.Vector3(0, fy(viewFloor === 0 ? 2 : viewFloor), -10);
 function showFloor(f){
   const before = viewFloor === 0 ? 2 : viewFloor; viewFloor = f; applyView();
   const dy = fy(f === 0 ? 2 : f) - fy(before);
   controls.target.y += dy; camera.position.y += dy;
-  if (f === 0){ const d = camera.position.clone().sub(controls.target); camera.position.copy(controls.target).add(d.multiplyScalar(1.5)); }
+  if (camTween){ camTween.toT.y += dy; camTween.toP.y += dy; }
+  if (f === 0 && camMode !== "street"){ const d = camera.position.clone().sub(controls.target); camera.position.copy(controls.target).add(d.multiplyScalar(1.4)); }
 }
 $("floors").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showFloor(+b.dataset.f); });
-function camHome(){
-  const k = Math.min(2.1, Math.max(1, 1.15 / (camera.aspect || 1.6))), f = viewFloor === 0 ? 2 : viewFloor;
-  controls.target.set(0, fy(f), -10);
-  camera.position.set(0, fy(f) + 700 * k * (viewFloor === 0 ? 1.4 : 1), 800 * k * (viewFloor === 0 ? 1.4 : 1)); controls.update();
+// 시점: [카메라 위치(목표점 기준), 목표점 이동]
+const VIEWS = {
+  default:{name:"기본", off:k => [0, 700 * k, 800 * k]},
+  left:{name:"왼쪽에서", off:k => [-950 * k, 560 * k, 420 * k]},
+  right:{name:"오른쪽에서", off:k => [950 * k, 560 * k, 420 * k]},
+  back:{name:"뒤쪽에서", off:k => [0, 620 * k, -900 * k]},
+  low:{name:"눈높이", off:k => [0, 130, 620 * k], t:[0, 40, 0]},
+  top:{name:"위에서", off:k => [0, 1350 * k, 260]},
+  street:{name:"거리에서 보기", off:() => [900, 140, 1350], t:[0, 160, 380], floor:0},
+  follow:{name:"캐릭터 따라가기"},
+  orbit:{name:"자동 회전"},
+};
+let camMode = "default", camTween = null, floorBeforeStreet = null;
+function setView(name){
+  const V = VIEWS[name]; if (!V) return;
+  controls.autoRotate = false; camMode = name;
+  if (name === "orbit"){ controls.autoRotate = true; controls.autoRotateSpeed = 1.2; return; }
+  if (name === "follow"){ if (!selected){ log("따라갈 캐릭터를 먼저 눌러 주세요", true); $("camSel").value = "default"; camMode = "default"; return; } return; }
+  if (V.floor === 0 && viewFloor !== 0){ floorBeforeStreet = viewFloor; showFloor(0); }
+  else if (V.floor !== 0 && floorBeforeStreet){ showFloor(floorBeforeStreet); floorBeforeStreet = null; }
+  const k = Math.min(2.1, Math.max(1, 1.15 / (camera.aspect || 1.6)));
+  const t = baseTarget().add(new THREE.Vector3(...(V.t || [0, 0, 0])));
+  const p = t.clone().add(new THREE.Vector3(...V.off(k)));
+  camTween = {t:0, fromP:camera.position.clone(), fromT:controls.target.clone(), toP:p, toT:t};
 }
+function camHome(){ $("camSel").value = "default"; setView("default"); }
+$("camSel").innerHTML = Object.entries(VIEWS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join("");
+$("camSel").onchange = e => setView(e.target.value);
 $("camReset").onclick = camHome;
+controls.addEventListener("start", () => { camTween = null; if (camMode === "orbit"){ controls.autoRotate = false; camMode = "default"; $("camSel").value = "default"; } });
+function camTick(dt){
+  if (camTween){
+    camTween.t = Math.min(1, camTween.t + dt / .9); const e = 1 - Math.pow(1 - camTween.t, 3);
+    camera.position.lerpVectors(camTween.fromP, camTween.toP, e); controls.target.lerpVectors(camTween.fromT, camTween.toT, e);
+    if (camTween.t >= 1) camTween = null;
+  }
+  if (camMode === "follow" && selected){
+    if (selected.floor !== viewFloor && viewFloor !== 0) showFloor(selected.floor);
+    const want = selected.obj.position.clone(); want.y += 30;
+    const d = want.sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
+    controls.target.add(d); camera.position.add(d);
+  }
+}
 $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켬" : "그림자 끔";
 $("shadowBtn").onclick = () => { renderer.shadowMap.enabled = !renderer.shadowMap.enabled; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켬" : "그림자 끔"; };
 
@@ -521,6 +660,7 @@ function applyTime(){
   const night = clamp(1 - (hemi.intensity / dark - .45) / 1.0, 0, 1);
   NIGHT.forEach(l => l.intensity = blackout ? 0 : night * 260);
   lamps.forEach(m => m.material.emissiveIntensity = .2 + night * 1.6);
+  STREETLIGHTS.forEach(m => m.material.emissiveIntensity = .1 + night * 2);
   const p = phase(), hh = String(Math.floor(h)).padStart(2, "0"), mm = String(Math.floor(S.time % 60)).padStart(2, "0");
   $("clock").textContent = `${p.icon} ${hh}:${mm} · ${p.name}`;
 }
@@ -573,6 +713,7 @@ const ACTIONS = {
   aegyo:{name:"애교 부리기", emo:"🥺", only:"momonga", at:null, partner:true, dur:6, eff:{social:8, fun:3}, skill:"social", lines:["칭찬해줘!","나 귀엽지?","헤헤"]},
   drink:{name:"한 잔 하기", emo:"🍶", only:"kurimanju", at:pick(S1.counter, S3.table), dur:8, eff:{fun:5, hunger:3, energy:-.3}, lines:["캬~","하아… 행복해","안주가 최고야"]},
   practice:{name:"주방 일 연습", emo:"🧑‍🍳", only:"shisa", at:pick(S1.counter, S2.kitchen), dur:9, eff:{fun:1, energy:-.8}, skill:"work", coin:3, lines:["열심히 할게요!","이렇게… 맞나요?","됐다!"]},
+  devwork:{name:"개발 작업", emo:"🧑‍💻", hidden:true, at:null, dur:1, eff:{}, lines:["…"]},
   tidy:{name:"책 정리하기", emo:"🗂️", only:"kani", at:pick(S1.shelf), dur:8, eff:{fun:2}, skill:"knowledge", lines:["…","(차곡차곡)","깔끔."]},
 };
 const FIX = {hunger:["snack","meal","bbq"], energy:["coffee","nap","sofa","sunbath"], fun:["tv","game","movie","dance","draw","piano"], social:["chat","boardgame","meeting"], hygiene:["wash","shower"], bladder:["toilet"]};
@@ -582,7 +723,7 @@ const PREF = {
   momonga:{aegyo:4, tv:2, game:2, chat:2, snack:1}, kurimanju:{drink:4, meal:2, sofa:2, bbq:2, sunbath:2},
   shisa:{practice:4, work:2, wash:1, chat:2, boardgame:1}, kani:{tidy:4, read:3, draw:2, piano:1, movie:1},
 };
-const allowed = (c, k) => ACTIONS[k] && (!ACTIONS[k].only || ACTIONS[k].only === c.id) && (!ACTIONS[k].need || ACTIONS[k].need());
+const allowed = (c, k) => ACTIONS[k] && !ACTIONS[k].hidden && (!ACTIONS[k].only || ACTIONS[k].only === c.id) && (!ACTIONS[k].need || ACTIONS[k].need());
 const xpNeed = lv => 60 + lv * 40;
 const skLv = xp => Math.min(10, Math.floor(Math.sqrt(xp / 15)) + 1);
 for (const c of CH){
@@ -1177,6 +1318,151 @@ function log(msg, bad){
   if (!bad){ history.push(msg); board.redraw(history); }
 }
 
+/* ================= agents: dev work log & meetings ================= */
+// 캐릭터 한 명 한 명이 역할을 맡은 에이전트예요. 회의로 일을 나누고, 자리에서 일하고, 우사기가 시험해요.
+const TASKS = [];
+let meetingBusy = false;
+const WORKSPOT = {momonga:P(1,465,548), kurimanju:P(1,830,240), shisa:P(1,835,100), kani:P(1,800,520)};
+const workSpot = c => DESK[c.id] || WORKSPOT[c.id];
+function minute(c, text, cls = ""){
+  const d = document.createElement("div"); d.className = "mline " + cls;
+  d.innerHTML = c ? `<img src="img/${c.id}.png" alt=""><b>${c.name}</b><span></span>` : `<span></span>`;
+  d.lastChild.textContent = text; $("minutes").appendChild(d); $("minutes").scrollTop = $("minutes").scrollHeight;
+}
+async function speak(c, text){
+  say(c, text.length > 26 ? text.slice(0, 25) + "…" : text, 3800); minute(c, text);
+  await sleep(Math.max(2200, Math.min(4200, text.length * 85)));
+}
+function claim(list){ const now = performance.now(); list.forEach(c => { c.seq = {}; stop(c); c.cur = null; c.manual = Infinity; }); }
+function release(list){ const now = performance.now(); list.forEach(c => { if (c.manual === Infinity) c.manual = now + 8000; if (c.cur === "devwork") c.cur = null; c.act = null; }); }
+// 다 모이길 오래 기다리지 않고, 랏코가 도착하면 조금 뒤 시작해요 (늦은 친구는 오는 중에 들어요)
+async function gather(list){ const all = Promise.all(list.map((c, i) => walkTo(c, S1.meet[i % 8]))); await Promise.race([all, sleep(14000)]); }
+function renderBoard(){
+  const col = st => TASKS.filter(t => t.status === st);
+  const card = t => `<div class="task ${t.status}"><img src="img/${t.who}.png" alt=""><div><b>${esc(t.title)}</b><small>${BY[t.who].name} · ${ROLES[t.who].short}</small>${bar(t.p)}</div></div>`;
+  $("board").innerHTML = ["todo", "doing", "review", "done"].map(st => `<div class="bcol"><h3>${{todo:"할 일", doing:"진행 중", review:"검토", done:"완료"}[st]} <span>${col(st).length}</span></h3>${col(st).slice(-6).map(card).join("")}</div>`).join("");
+}
+async function workTask(c, task, lines){
+  task.status = "doing"; renderBoard();
+  if (!await walkTo(c, workSpot(c))) { /* 이동이 끊겨도 그 자리에서 이어서 해요 */ }
+  c.cur = "devwork"; c.act = {kind:"busy", t0:performance.now()};
+  const steps = lines.length * 3;
+  for (let s = 0; s < steps; s++){
+    if (s % 3 === 0) say(c, lines[s / 3], 2600);
+    if (DESK[c.id]) monitors[c.id].redraw(`${c.name}\n${task.title.slice(0, 11)}\n${"▮".repeat(Math.ceil((s + 1) / steps * 8))}`);
+    await sleep(1300); task.p = Math.round((s + 1) / steps * 100); renderBoard();
+  }
+  if (DESK[c.id]) monitors[c.id].redraw(`${c.name}\n휴식 중`);
+  c.act = null; c.cur = null; addXP(c, 12, ROLES[c.id].short === "QA" ? "knowledge" : ROLES[c.id].short === "디자인" ? "art" : "work");
+  task.status = "review"; renderBoard();
+}
+async function playSession(sess){
+  if (meetingBusy){ log("지금 회의 중이에요", true); return; }
+  meetingBusy = true; showFloor(1); $("minutes").innerHTML = ""; TASKS.length = 0; renderBoard();
+  minute(null, `📅 ${sess.date} · ${sess.title}`, "head");
+  const team = CH.slice(); claim(team); await gather(team);
+  const R = BY.rakko;
+  await speak(R, `회의 시작하지. 요청: "${sess.request}"`);
+  const items = sess.items.filter(it => it.who !== "rakko");
+  const lead = sess.items.find(it => it.who === "rakko"); if (lead) await speak(R, lead.plan);
+  for (const it of items){
+    const c = BY[it.who]; TASKS.push({title:it.title, who:it.who, p:0, status:"todo", it}); renderBoard();
+    await speak(R, `${c.name}, ${josa(it.title, "을를")} 맡아 줘.`); await speak(c, it.plan);
+  }
+  await speak(R, "좋아, 다들 자리로! 시작하자.");
+  await Promise.all(TASKS.map(t => workTask(BY[t.who], t, t.it.work)));
+  minute(null, "🔎 우사기가 시험하는 중…", "head");
+  const U = BY.usagi; await walkTo(U, P(1, 500, 250));
+  for (const t of TASKS){
+    if (t.it.bug){ await speak(U, t.it.bug); const fx = BY[t.it.fixBy]; await speak(fx, t.it.fix); fx.act = {kind:"busy", t0:performance.now()}; await sleep(2500); fx.act = null; }
+    t.status = "done"; renderBoard();
+  }
+  for (const t of TASKS) if (t.it.done) await speak(BY[t.who], t.it.done);
+  await speak(BY.kurimanju, "하아… 배포 완료~ 캬~");
+  await speak(R, "다들 수고했어. 오늘 작업 끝!");
+  team.forEach(c => { if (visibleChar(c)) c.act = {kind:"jump", t0:performance.now()}; });
+  addCoins(40, "개발 작업 완료"); emit("meeting");
+  release(team); meetingBusy = false;
+}
+// 주제 회의: Claude가 연결돼 있으면 대본을 만들고, 없으면 역할별 대사로 진행해요
+function localMeeting(topic){
+  const t = topic.length > 26 ? topic.slice(0, 25) + "…" : topic, st = topic.length > 10 ? topic.slice(0, 10) + "…" : topic;
+  return {
+    lines:[
+      ["rakko", `오늘 안건은 "${t}"야. 각자 의견 말해 줘.`],
+      ["hachiware", `화면에서 바로 보이게 만들면 좋겠어! 버튼 하나로 되게!`],
+      ["chiikawa", `…귀엽게 꾸미는 건, 내가 해 볼게…!`],
+      ["shisa", `필요한 데이터랑 규칙은 제가 정리할게요!`],
+      ["usagi", `우라! (시험은 맡겨 달라는 듯 손을 번쩍)`],
+      ["kurimanju", `하아… 다 되면 배포는 내가 챙길게~`],
+      ["momonga", `사용법은 내가 쓸게! 대신 칭찬해 줘!`],
+      ["kani", `…코드 리뷰는, 내가.`],
+      ["hachiware", `좋다! 작게 먼저 만들고 고쳐 나가자~`],
+      ["rakko", `좋아, 정리하지. 하치와레가 화면, 치이카와가 디자인, 시사가 규칙을 맡는다.`],
+    ].map(([who, text]) => ({who, text})),
+    decisions:[`"${t}"는 작게 먼저 만들고 우사기가 시험한 뒤 고친다`],
+    todos:[{who:"hachiware", title:`${st} 화면 만들기`}, {who:"chiikawa", title:`${st} 꾸미기`}, {who:"shisa", title:`${st} 규칙 정리`}, {who:"momonga", title:`${st} 안내문 쓰기`}],
+  };
+}
+async function claudeMeeting(topic){
+  const roster = CH.map(c => `- ${c.name} (${ROLES[c.id].role}): ${TRAITS[c.id].speech}`).join("\n");
+  const sys = `너는 팬이 만든 비공식 게임 "치이카와 오피스"의 회의 대본 작가야. 캐릭터는 각자 역할을 맡은 AI 에이전트 팀이야. 원작 설정을 지어내지 말고, 아래 말투를 지켜.\n${roster}`;
+  const ask = `회의 주제: """${topic.slice(0, 300)}"""
+아래 형식으로만 써.
+이름: 대사   ← 10~14줄. 각 대사 50자 이내. 랏코가 시작하고 마지막에 정리해. 이름은 ${CH.map(c => c.name).join(", ")} 중에서.
+@결정: (결정 사항, 1~3줄)
+@할일: 이름 | 할 일 (2~5줄, 할 일은 20자 이내)`;
+  const out = await askClaude(sys, [{role:"user", content:ask}], 3000);
+  const nameTo = Object.fromEntries(CH.map(c => [c.name, c.id]));
+  const lines = [], decisions = [], todos = [];
+  for (const raw of out.split("\n")){
+    const l = raw.trim(); let m;
+    if ((m = l.match(/^@결정\s*[:：]\s*(.+)/))) decisions.push(m[1]);
+    else if ((m = l.match(/^@할일\s*[:：]\s*(\S+)\s*\|\s*(.+)/)) && nameTo[m[1]]) todos.push({who:nameTo[m[1]], title:m[2].slice(0, 24)});
+    else if ((m = l.match(/^(\S+?)\s*[:：]\s*(.+)/)) && nameTo[m[1]]) lines.push({who:nameTo[m[1]], text:m[2].slice(0, 80)});
+  }
+  if (lines.length < 3) throw { code:"format" };
+  return {lines, decisions, todos};
+}
+async function agentMeeting(topic){
+  if (meetingBusy){ log("지금 회의 중이에요", true); return; }
+  meetingBusy = true; showFloor(1); $("minutes").innerHTML = ""; minute(null, `🗣️ 회의 주제: ${topic}`, "head");
+  let script = null;
+  if (connected()){ minute(null, "Claude가 회의 대본을 쓰는 중…", "head"); try { script = await claudeMeeting(topic); } catch (e) { minute(null, `(${ERRMSG[e?.code] || "대본을 만들지 못했어요"} · 기본 대본으로 진행해요)`, "head"); } }
+  script = script || localMeeting(topic);
+  const team = CH.slice(); claim(team); await gather(team);
+  for (const l of script.lines) await speak(BY[l.who], l.text);
+  for (const d of script.decisions){ minute(null, `✅ 결정: ${d}`, "head"); }
+  const tasks = script.todos.map(t => ({title:t.title, who:t.who, p:0, status:"todo"})); TASKS.push(...tasks); renderBoard();
+  for (const t of tasks) minute(BY[t.who], `할 일: ${t.title}`, "todo");
+  await speak(BY.rakko, "좋아, 각자 자리로!");
+  const generic = c => ({hachiware:["화면 만드는 중!","거의 다 됐어~"], chiikawa:["…꾸미는 중…","…색 고르는 중…"], shisa:["규칙 정리 중이에요!","표로 만들었어요!"], momonga:["안내문 쓰는 중!","칭찬받을 준비 끝!"], kurimanju:["하아… 서버 보는 중~"], kani:["…읽는 중.","…괜찮아."], usagi:["(이것저것 눌러 봄)","우라!"], rakko:["진행 상황 확인 중","좋아"]}[c.id]);
+  await Promise.all(tasks.map(t => workTask(BY[t.who], t, generic(BY[t.who]))));
+  const U = BY.usagi; await speak(U, rand(["우라! (통과!)","야하!","하아…? …우라! (괜찮다는 듯)"]));
+  tasks.forEach(t => t.status = "done"); renderBoard();
+  await speak(BY.rakko, "회의에서 정한 일 끝. 수고했어!");
+  addCoins(30, "회의 안건 완료"); emit("meeting");
+  release(team); meetingBusy = false;
+}
+// 자체 회의: 업무 시간에는 가끔 알아서 짧은 아침 회의를 해요
+async function standup(){
+  if (meetingBusy || taskBusy || isNight() || phase().k !== "work") return;
+  const team = CREW.filter(c => c.manual < performance.now() && !c.ride && !c.hidden); if (team.length < 3) return;
+  meetingBusy = true; $("minutes").innerHTML = ""; minute(null, "☀️ 자체 회의 (아침 스탠드업)", "head"); claim(team); await gather(team);
+  await speak(BY.rakko, "짧게 스탠드업 하지. 각자 한 줄씩.");
+  for (const c of team.filter(c => c.id !== "rakko")){
+    const top = Object.entries(c.stats).filter(([k]) => ACTIONS[k] && !ACTIONS[k].hidden).sort((a, b) => b[1] - a[1])[0];
+    const did = top ? `${ACTIONS[top[0]].name} ${top[1]}번` : "준비";
+    await speak(c, c.id === "usagi" ? `우라! (${did} 했다는 듯 손가락을 폄)` : c.id === "chiikawa" ? `…${did} 했어…! 오늘도 할 수 있어…!` : `${did} 했어! 오늘은 ${ROLES[c.id].role} 일 계속할게!`);
+  }
+  await speak(BY.rakko, "좋아. 오늘도 잘 부탁해.");
+  release(team); meetingBusy = false; emit("meeting");
+}
+setInterval(() => { if (Math.random() < .35) standup(); }, 240000);
+$("logSel").innerHTML = SESSIONS.map((s, i) => `<option value="${i}">${s.date} · ${s.title}</option>`).join("");
+$("replayBtn").onclick = () => playSession(SESSIONS[+$("logSel").value || 0]);
+$("meetForm").addEventListener("submit", e => { e.preventDefault(); const t = $("meetIn").value.trim(); if (!t) return; $("meetIn").value = ""; agentMeeting(t); });
+
 /* ================= panels ================= */
 const bar = (v, max = 100) => `<span class="bar"><i style="width:${clamp(v / max * 100, 0, 100)}%;background:${moodColor(v / max * 100).getStyle()}"></i></span>`;
 function renderStatus(){
@@ -1192,14 +1478,14 @@ function renderStatus(){
     <div class="shead"><img src="img/${c.id}.png" alt=""><div><h2>${c.name} <span class="lv">Lv.${c.lv}</span></h2>
       <div class="xp">${bar(c.xp, xpNeed(c.lv))}<small>${Math.floor(c.xp)} / ${xpNeed(c.lv)} XP</small></div>
       <div class="moodline">${e.emo} <b>${e.name}</b> · 기분 ${Math.round(mood(c))} · ${c.floor}층에서 ${doingText(c)} 중</div>
-      <div class="trait">✨ ${T.title} · 좋아하는 것: ${T.likes}</div></div>
+      <div class="trait">✨ ${T.title} · 좋아하는 것: ${T.likes}</div><div class="trait">🧩 에이전트 역할: ${ROLES[c.id].role}</div></div>
       <button type="button" class="x" id="closeSel" aria-label="닫기">✕</button></div>
     <div class="needs">${NEEDS.map(n => `<div class="need"><span>${n.icon} ${n.name}</span>${bar(c.needs[n.k])}</div>`).join("")}</div>
     <div class="skills">${Object.entries(SKILLS).map(([k, s]) => `<span>${s.icon} ${s.name} <b>Lv.${skLv(c.skills[k])}</b></span>`).join("")}</div>
     <div class="sub">관계</div><div class="rels">${rels.map(({o, v}) => `<span>${o.name} <b>${relTier(v).name}</b> ${relTier(v).h}</span>`).join("")}<span>나 <b>${relTier(c.prel).name}</b> ${relTier(c.prel).h}</span></div>
     <div class="sub">행동</div><div class="acts"><button type="button" class="act talk" data-a="__talk">💬 대화하기</button>
       ${Object.entries(ACTIONS).filter(([k, a]) => a.only === c.id).map(([k, a]) => `<button type="button" class="act special" data-a="${k}">${a.emo} ${a.name}</button>`).join("")}
-      ${Object.entries(ACTIONS).filter(([k, a]) => !a.only).map(([k, a]) => `<button type="button" class="act" data-a="${k}" ${allowed(c, k) ? "" : "disabled"}>${a.emo} ${a.name}</button>`).join("")}
+      ${Object.entries(ACTIONS).filter(([k, a]) => !a.only && !a.hidden).map(([k, a]) => `<button type="button" class="act" data-a="${k}" ${allowed(c, k) ? "" : "disabled"}>${a.emo} ${a.name}</button>`).join("")}
       ${c.hat ? `<button type="button" class="act" data-a="__hat">🎩 모자 벗기</button>` : ""}</div>`;
 }
 function renderQuests(){
@@ -1267,13 +1553,14 @@ function tick(){
     if ((c.gemT = (c.gemT || 0) + dt) > .5){ c.gemT = 0; const col = moodColor(mood(c)); c.gem.material.color.copy(col); c.gem.material.emissive.copy(col).multiplyScalar(.5); }
   }
   if (selected){ ring.visible = visibleChar(selected) && !selected.hidden; ring.position.copy(selected.obj.position); ring.position.y += 1.2; ring.material.opacity = .6 + Math.sin(now / 200) * .3; }
+  camTick(dt); cityTick(dt);
   controls.update();
   renderer.render(scene, camera); labels.render(scene, camera);
   requestAnimationFrame(tick);
 }
 
 /* ================= start ================= */
-applyView(); resize(); camHome(); applyTime(); renderQuests(); renderShop(); renderStatus(); connUI();
+applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); renderShop(); renderStatus(); connUI();
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
