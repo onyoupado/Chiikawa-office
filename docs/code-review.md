@@ -19,7 +19,7 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 [파일 구성]
 - 3d/app.js (1569줄): 3D 버전의 모든 로직 (Three.js 장면, 건물·거리, 이동, 욕구, 관계, 과업, 상점, 이벤트, 대화, 에이전트 회의)
 - 3d/worklog.js (49줄): 에이전트 역할과 개발 일지 데이터
-- 3d.html (219줄): 3D 버전 화면 구조와 CSS
+- 3d.html (220줄): 3D 버전 화면 구조와 CSS
 - index.html (1129줄): 2D 버전 (한 파일에 HTML·CSS·JS, Claude 업무 지시)
 ```
 
@@ -1733,6 +1733,7 @@ button.pill[aria-pressed="true"]{border-color:#2d3149;background:#fdf3c9;font-we
 .sel{position:absolute;left:10px;bottom:40px;z-index:5;background:rgba(255,255,255,.94);color:#2d3149;border:2px solid var(--pink);border-radius:12px;padding:4px 10px;font-size:.85rem;max-width:calc(100% - 20px)}
 .help{position:absolute;left:10px;bottom:10px;z-index:4;background:rgba(255,255,255,.85);color:#4a4f6a;border-radius:10px;padding:3px 9px;font-size:.72rem;max-width:40%}
 @media (max-width:640px){.help{display:none}}
+@media (max-width:640px){.tools{left:10px;right:10px;max-width:none;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none}.tools .pill{flex:none}.sel{bottom:52px}}
 .toast{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:6;background:#fff;color:#2d3149;border:2px solid #2d3149;border-radius:14px;padding:6px 12px;font-size:.88rem;box-shadow:0 4px 0 rgba(45,49,73,.25);display:flex;gap:8px;align-items:center;max-width:calc(100% - 20px)}
 .toast button{font:inherit;font-size:.8rem;border:2px solid #2d3149;background:#ff8fb1;color:#2d3149;border-radius:10px;padding:1px 8px;cursor:pointer;white-space:nowrap}
 .panel{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px;min-width:0}
