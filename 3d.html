@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>치이카와 오피스 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: a full-width 3D office you can orbit, with a command bar under it. Light day office; dark mode only recolors the UI chrome. */
+:root{
+  --bg:#f4f7fc; --panel:#ffffff; --line:#dbe2ef; --ink:#2d3149; --muted:#6b7190;
+  --pink:#ff8fb1; --blue:#6f9fd8; --yellow-soft:#fdf3c9; --ok:#3f9d6b;
+  --f-display:"Gaegu","Comic Sans MS",cursive; --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8; --yellow-soft:#463d1e; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8; --yellow-soft:#463d1e; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding:12px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-size:2.1rem;line-height:1;margin:0}
+h1 small{display:block;font-family:var(--f-body);font-size:.85rem;color:var(--muted);margin-top:6px;font-weight:400}
+header a{color:var(--blue);font-size:.85rem}
+.view{position:relative;height:min(68vh,640px);min-height:340px;border-radius:18px;overflow:hidden;border:2px solid var(--line);background:linear-gradient(#cfe4ff,#f3ecff);touch-action:none}
+.view canvas{display:block}
+.tools{position:absolute;right:10px;top:10px;display:flex;gap:6px;z-index:5}
+.tools button{font:inherit;font-size:.8rem;border:2px solid var(--line);background:rgba(255,255,255,.9);color:#2d3149;border-radius:999px;padding:3px 10px;cursor:pointer}
+.sel{position:absolute;left:10px;bottom:40px;z-index:5;background:rgba(255,255,255,.92);color:#2d3149;border:2px solid var(--pink);border-radius:12px;padding:4px 10px;font-size:.85rem}
+.help{position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(255,255,255,.85);color:#4a4f6a;border-radius:10px;padding:3px 9px;font-size:.75rem}
+.panel{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px}
+.cmd{display:flex;gap:8px}
+.cmd input{flex:1;min-width:0;font:inherit;border:2px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--bg);color:var(--ink)}
+.cmd input:focus-visible,button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.btn{font:inherit;font-family:var(--f-display);font-weight:700;font-size:1.15rem;border:2px solid var(--ink);background:var(--pink);color:#2d3149;border-radius:12px;padding:4px 16px;cursor:pointer;box-shadow:0 3px 0 var(--ink)}
+.btn:active{transform:translateY(3px);box-shadow:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font:inherit;font-size:.8rem;border:1px dashed var(--muted);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip.who{border-style:solid}
+.chip.on{background:var(--yellow-soft);color:var(--ink);border-color:var(--ink)}
+.note{font-size:.78rem;color:var(--muted);margin:8px 0 0}
+.log{font-size:.8rem;max-height:150px;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.log .bad{color:#d0505f}
+/* 3D labels (CSS2D) */
+.nm{font-size:12px;line-height:1;white-space:nowrap;background:rgba(255,255,255,.92);color:#2d3149;border:1px solid #dbe2ef;border-radius:10px;padding:2px 6px;transform:translateY(12px);pointer-events:none}
+.nm.on{border-color:#ff8fb1;background:#fff0f5;font-weight:700}
+.bub{font-family:var(--f-display);font-weight:700;font-size:16px;line-height:1.2;white-space:nowrap;background:#fff;color:#2d3149;border:2px solid #2d3149;border-radius:14px;padding:3px 10px;opacity:0;transition:opacity .2s;pointer-events:none;position:relative;transform:translateY(-8px)}
+.bub.show{opacity:1}
+.bub::after{content:"";position:absolute;left:50%;bottom:-7px;width:10px;height:10px;background:#fff;border-right:2px solid #2d3149;border-bottom:2px solid #2d3149;transform:translateX(-50%) rotate(45deg)}
+.rlab{font-family:var(--f-display);font-weight:700;font-size:15px;color:#2d3149;background:rgba(255,255,255,.75);border-radius:8px;padding:0 6px;pointer-events:none;white-space:nowrap}
+.err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:#2d3149;background:rgba(255,255,255,.9);z-index:6}
+footer{font-size:.75rem;color:var(--muted);text-align:center}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>치이카와 오피스 3D<small>캐릭터를 누르고 바닥을 누르면 걸어가요. 아래에 명령을 써도 돼요.</small></h1>
+    <a href="./">← 2D 사무실로 돌아가기</a>
+  </header>
+
+  <div class="view" id="view">
+    <div class="sel" id="sel" hidden></div>
+    <div class="tools">
+      <button type="button" id="camTop">위에서 보기</button>
+      <button type="button" id="camReset">처음 시점</button>
+      <button type="button" id="shadowBtn">그림자 켜짐</button>
+    </div>
+    <div class="help">한 손가락: 회전 · 두 손가락: 확대/이동</div>
+  </div>
+
+  <section class="panel">
+    <form class="cmd" id="cmdForm">
+      <input id="cmd" autocomplete="off" placeholder="예: 우사기 탕비실로 가 / 모두 회의실로 모여 / 하치와레 '안녕' 이라고 말해" aria-label="명령">
+      <button class="btn" type="submit">명령</button>
+    </form>
+    <div class="chips" id="who"></div>
+    <div class="chips" id="ex"></div>
+    <p class="note">할 수 있는 말: <b>가/와/모여</b>(장소: 회의실·자리·탕비실·커피·냉장고·화장실·휴게실·소파·TV·자료실·책장·엘리베이터·복도), <b>점프</b>, <b>춤</b>, <b>자</b>, <b>일어나</b>, <b>돌아</b>, <b>멈춰</b>, <b>자리로</b>, <b>'…' 라고 말해</b>. 여러 명령은 쉼표나 "그리고"로 이어 써요. 명령은 페이지 안에서 해석해서 토큰을 쓰지 않아요.</p>
+    <div class="log" id="log" aria-live="polite"></div>
+  </section>
+  <footer>팬이 만든 비영리·비공식 프로젝트예요. 치이카와 캐릭터의 권리는 원작자 나가노에게 있어요. · 1단계: 1층 사무실</footer>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+const $ = id => document.getElementById(id);
+const rand = a => a[Math.floor(Math.random() * a.length)];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const view = $("view");
+
+/* ---------- renderer, camera, controls ---------- */
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (e) {
+  view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`);
+  throw e;
+}
+const MOBILE = matchMedia("(pointer: coarse)").matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.75 : 2));
+renderer.shadowMap.enabled = !MOBILE;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+view.prepend(renderer.domElement);
+const labels = new CSS2DRenderer();
+labels.domElement.style.cssText = "position:absolute;inset:0;pointer-events:none";
+view.appendChild(labels.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#dfeaff");
+scene.fog = new THREE.Fog("#dfeaff", 1400, 2600);
+const camera = new THREE.PerspectiveCamera(40, 1, 5, 5000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = 1.25; controls.minDistance = 250; controls.maxDistance = 2600;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+const CAM0 = { pos: new THREE.Vector3(0, 640, 700), target: new THREE.Vector3(0, 0, -10) };
+function camHome(top){
+  const k = Math.min(2.1, Math.max(1, 1.15 / (camera.aspect || 1.6)));   // 세로로 긴 화면(휴대폰)은 더 멀리서
+  camera.position.copy(top ? new THREE.Vector3(0, 1150, 60) : CAM0.pos).multiplyScalar(k);
+  controls.target.copy(CAM0.target); controls.update();
+}
+$("camReset").onclick = () => camHome(false);
+$("camTop").onclick = () => camHome(true);
+$("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켜짐" : "그림자 꺼짐";
+$("shadowBtn").onclick = () => {
+  renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
+  scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+  $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켜짐" : "그림자 꺼짐";
+};
+function resize(){
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h); labels.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+
+/* lights */
+scene.add(new THREE.HemisphereLight("#ffffff", "#c9c2d8", 1.6));
+const sun = new THREE.DirectionalLight("#fff6e8", 1.6);
+sun.position.set(-350, 700, 450); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -620, right: 620, top: 420, bottom: -420, near: 100, far: 1800 });
+sun.shadow.bias = -0.0008;
+scene.add(sun);
+
+/* ---------- world helpers: logical map (1000 x 640) -> world (x-500, z=y-320) ---------- */
+const W = (x, y) => new THREE.Vector3(x - 500, 0, y - 320);
+const MATS = {};
+const mat = c => MATS[c] || (MATS[c] = new THREE.MeshStandardMaterial({ color: c, roughness: .85 }));
+function box(x, y, w, h, H, color, lift = 0){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, H, h), mat(color));
+  m.position.copy(W(x + w/2, y + h/2)); m.position.y = lift + H/2;
+  m.castShadow = m.receiveShadow = true; scene.add(m); return m;
+}
+function cyl(x, y, r, H, color, lift = 0, r2 = r){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r2, H, 20), mat(color));
+  m.position.copy(W(x, y)); m.position.y = lift + H/2; m.castShadow = m.receiveShadow = true; scene.add(m); return m;
+}
+function plane(x, y, w, h, color, lift = .4){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat(color));
+  m.rotation.x = -Math.PI/2; m.position.copy(W(x + w/2, y + h/2)); m.position.y = lift;
+  m.receiveShadow = true; scene.add(m); return m;
+}
+// 글자를 그려 넣는 판 (화이트보드, 모니터, TV, 표지판)
+function canvasPanel(w, h, draw, px = 4){
+  const cv = document.createElement("canvas"); cv.width = w * px; cv.height = h * px;
+  const ctx = cv.getContext("2d"); const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex }));
+  m.redraw = (...a) => { ctx.setTransform(px, 0, 0, px, 0, 0); draw(ctx, w, h, ...a); tex.needsUpdate = true; };
+  m.redraw(); scene.add(m); return m;
+}
+function label(text, x, y, H, cls = "rlab"){
+  const d = document.createElement("div"); d.className = cls; d.textContent = text;
+  const o = new CSS2DObject(d); o.position.copy(W(x, y)); o.position.y = H; scene.add(o); return o;
+}
+function plant(x, y, big = false){
+  cyl(x, y, big ? 14 : 10, big ? 22 : 16, "#c98b5e", 0, big ? 11 : 8);
+  const g = new THREE.Mesh(new THREE.IcosahedronGeometry(big ? 24 : 16, 1), mat("#7cc29a"));
+  g.position.copy(W(x, y)); g.position.y = (big ? 22 : 16) + (big ? 20 : 13); g.castShadow = true; scene.add(g);
+}
+
+/* ---------- 1F floor plan ---------- */
+const CY = 320;
+const ROOMS = {
+  meeting:{name:"회의실",x:20,y:20,w:280,h:270,door:160,c:"#ece6fb"},
+  work:{name:"업무 공간",x:300,y:20,w:400,h:270,door:500,c:"#e2eefa"},
+  pantry:{name:"탕비실",x:700,y:20,w:280,h:270,door:840,c:"#fdf3d2"},
+  elevator:{name:"엘리베이터",x:20,y:350,w:150,h:270,door:132,c:"#e3e7ee"},
+  restroom:{name:"화장실",x:170,y:350,w:160,h:270,door:250,c:"#dff3ec"},
+  lounge:{name:"휴게실",x:330,y:350,w:370,h:270,door:515,c:"#fde4ec"},
+  archive:{name:"자료실",x:700,y:350,w:280,h:270,door:840,c:"#f3eadf"},
+};
+const isTop = r => r.y < CY;
+const inner = r => isTop(r) ? r.y + r.h - 22 : r.y + 22;
+plane(-40, -40, 1080, 720, "#e9edf4", 0).receiveShadow = true;      // 건물 바닥
+const WALL = "#d6dcea", WH = 60, WT = 6;
+for (const [k, r] of Object.entries(ROOMS)){
+  plane(r.x, r.y, r.w, r.h, r.c, .5);
+  const gap = (y, door) => door ? [[r.x, door - 34], [door + 34, r.x + r.w]] : [[r.x, r.x + r.w]];
+  for (const [a, b] of gap(r.y, isTop(r) ? 0 : r.door)) box(a, r.y - WT/2, b - a, WT, WH, WALL);
+  for (const [a, b] of gap(r.y + r.h, isTop(r) ? r.door : 0)) box(a, r.y + r.h - WT/2, b - a, WT, WH * .35, WALL);   // 앞벽은 낮게
+  box(r.x - WT/2, r.y, WT, r.h, WH, WALL); box(r.x + r.w - WT/2, r.y, WT, r.h, WH, WALL);
+  label(r.name, r.x + 50, r.y + 24, 4);
+}
+
+/* furniture: 회의실 */
+box(70, 150, 180, 50, 26, "#e8d2b4");
+box(82, 162, 34, 22, 2, "#3a3f55", 26); box(130, 165, 22, 16, 1, "#ffffff", 26); box(160, 165, 22, 16, 1, "#ffffff", 26);
+cyl(200, 172, 3, 12, "#9fd3f5", 26); cyl(212, 172, 3, 12, "#9fd3f5", 26);
+for (const x of [84, 134, 184, 234]) box(x - 10, 128, 20, 16, 16, "#aeb7c8");
+const board = canvasPanel(240, 90, (g, w, h, items = ["업무를 기다리는 중"]) => {
+  g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); g.strokeStyle = "#aeb7c8"; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4);
+  g.fillStyle = "#2d3149"; g.font = "bold 14px Gaegu, sans-serif"; g.fillText("명령 기록", 10, 20);
+  g.font = "11px 'Gowun Dodum', sans-serif"; items.slice(-5).forEach((t, i) => g.fillText("• " + t.slice(0, 28), 12, 38 + i * 12));
+});
+board.position.copy(W(160, 26)); board.position.y = 62;
+plant(40, 272);
+
+/* 업무 공간: 책상 + 모니터(이름) + 키보드 + 머그 */
+const NAMES = {rakko:"랏코", chiikawa:"치이카와", hachiware:"하치와레", usagi:"우사기", momonga:"모몽가", kurimanju:"쿠리만쥬", shisa:"시사", kani:"카니"};
+const DESK = {rakko:{x:420,y:100}, chiikawa:{x:580,y:100}, hachiware:{x:420,y:205}, usagi:{x:580,y:205}};
+const MUG = {rakko:"#a87a52", chiikawa:"#ff8fb1", hachiware:"#6f9fd8", usagi:"#f2cf4a"};
+const monitors = {};
+for (const [id, s] of Object.entries(DESK)){
+  box(s.x - 58, s.y - 68, 116, 44, 28, "#ffffff");
+  box(s.x - 30, s.y - 40, 60, 14, 1.5, "#e3e7ee", 28);
+  cyl(s.x + 42, s.y - 36, 4, 9, MUG[id], 28);
+  box(s.x - 4, s.y - 62, 8, 6, 14, "#aeb7c8", 28);
+  const m = canvasPanel(78, 46, (g, w, h, text = NAMES[id] + "\n휴식 중") => {
+    g.fillStyle = "#2b3d6b"; g.fillRect(0, 0, w, h); g.fillStyle = "#eaf3ff"; g.fillRect(3, 3, w - 6, h - 6);
+    g.fillStyle = "#43608f"; g.font = "bold 10px 'Gowun Dodum', sans-serif";
+    text.split("\n").forEach((t, i) => g.fillText(t, 7, 16 + i * 13));
+  });
+  m.position.copy(W(s.x, s.y - 58)); m.position.y = 28 + 14 + 23; m.rotation.x = -0.12;
+  monitors[id] = m;
+}
+/* 탕비실 */
+box(738, 40, 54, 50, 60, "#5d6578"); box(752, 92, 26, 2, 22, "#2b2d3a", 6);
+cyl(765, 80, 5, 9, "#ffffff", 8);
+box(885, 30, 62, 70, 110, "#c9d0dc"); box(935, 100, 3, 6, 30, "#9aa6c4", 50); box(935, 100, 3, 6, 18, "#9aa6c4", 20);
+box(800, 40, 70, 40, 34, "#e8d2b4"); cyl(815, 60, 8, 16, "#e9edf3", 34); cyl(845, 60, 5, 9, "#ffffff", 34); cyl(858, 60, 5, 9, "#6f9fd8", 34);
+box(780, 262, 120, 26, 26, "#e8d2b4"); cyl(830, 275, 12, 2, "#ffffff", 26);
+for (const dx of [-6, 0, 6]) cyl(830 + dx, 275, 3, 3, "#e0a96d", 28);
+plant(720, 268);
+/* 엘리베이터 */
+box(30, 452, 62, 80, 78, "#aeb7c8"); box(36, 532, 25, 2, 62, "#c9d0dc", 0); box(61, 532, 25, 2, 62, "#c9d0dc", 0);
+box(48, 532, 26, 2, 10, "#1f2337", 66);
+/* 화장실 */
+for (const x of [182, 260]){ box(x, 530, 62, 80, 70, "#f3f5fa"); box(x + 48, 610, 5, 2, 8, "#9aa6c4", 30); box(x + 25, 610, 12, 2, 5, "#3f9d6b", 60); }
+box(185, 395, 120, 30, 30, "#ffffff"); cyl(212, 410, 12, 2, "#cfe3f3", 30); cyl(275, 410, 12, 2, "#cfe3f3", 30);
+box(190, 352, 110, 3, 30, "#cfe6fa", 40);
+/* 휴게실 */
+plane(380, 470, 260, 110, "#ffd7e3", .8);
+box(380, 560, 150, 42, 22, "#ff9fb8"); box(380, 590, 150, 12, 50, "#ff9fb8"); box(380, 560, 14, 42, 34, "#ff9fb8"); box(516, 560, 14, 42, 34, "#ff9fb8");
+for (const i of [0, 1, 2]) box(400 + i * 40, 575, 32, 12, 14, "#fff3f6", 22);
+const bean = new THREE.Mesh(new THREE.SphereGeometry(26, 20, 12), mat("#f2cf4a")); bean.scale.y = .55; bean.position.copy(W(386, 485)); bean.position.y = 12; bean.castShadow = true; scene.add(bean);
+box(590, 380, 84, 20, 22, "#e8d2b4");
+const tv = canvasPanel(74, 46, (g, w, h) => { g.fillStyle = "#1f2337"; g.fillRect(0, 0, w, h); g.fillStyle = "#9fe3c0"; g.font = "bold 10px monospace"; g.fillText("♪ ON AIR", 14, 27); });
+tv.position.copy(W(632, 388)); tv.position.y = 22 + 26;
+box(430, 500, 70, 30, 14, "#e8d2b4"); box(442, 506, 20, 16, 1, "#ffffff", 14); box(470, 506, 20, 16, 1, "#ffe0ea", 14);
+plant(675, 585, true);
+/* 자료실 */
+const BOOKS = ["#e57373", "#64b5f6", "#ffd54f", "#81c784", "#ba68c8", "#ff8a65"];
+for (const sx of [728, 862]){
+  box(sx, 365, 92, 40, 100, "#c9a77e");
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 9; i++) box(sx + 5 + i * 9.4, 402, 7, 4, 24, BOOKS[(i + r) % 6], 6 + r * 32);
+}
+box(806, 575, 70, 32, 30, "#c9d0dc"); box(820, 580, 30, 18, 2, "#ffffff", 30);
+box(720, 560, 46, 40, 56, "#aeb7c8");
+/* 복도 */
+box(676, 298, 22, 18, 30, "#ffffff"); cyl(687, 307, 7, 18, "#8ec5ee", 30);
+plant(962, 312);
+
+/* ---------- routing (same rules as the 2D office) ---------- */
+const roomAt = p => { for (const [k, r] of Object.entries(ROOMS)) if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return k; return null; };
+function route(from, to){
+  const a = roomAt(from), b = roomAt(to), pts = [];
+  if (a && a === b) return [to];
+  if (a){ const r = ROOMS[a]; pts.push({x:r.door, y:inner(r)}, {x:r.door, y:CY}); } else pts.push({x:from.x, y:CY});
+  if (b){ const r = ROOMS[b]; pts.push({x:r.door, y:CY}, {x:r.door, y:inner(r)}); }
+  pts.push(to); return pts;
+}
+// 방 안 바닥이 아닌 곳(벽 근처)을 누르면 가장 가까운 걸을 수 있는 곳으로 바꿔요
+function clampWalk(p){
+  const q = {x: Math.max(30, Math.min(970, p.x)), y: Math.max(30, Math.min(610, p.y))};
+  const k = roomAt(q);
+  if (k){ const r = ROOMS[k]; q.x = Math.max(r.x + 18, Math.min(r.x + r.w - 18, q.x)); q.y = Math.max(r.y + 18, Math.min(r.y + r.h - 12, q.y)); }
+  else q.y = Math.max(CY - 20, Math.min(CY + 20, q.y));
+  return q;
+}
+
+/* ---------- places for commands ---------- */
+const PLACE = [
+  {k:["회의실","회의"], at:i => [{x:90,y:130},{x:230,y:130},{x:90,y:235},{x:230,y:235},{x:45,y:180},{x:275,y:180},{x:120,y:275},{x:200,y:275}][i % 8], name:"회의실"},
+  {k:["커피"], at:() => ({x:765,y:115}), name:"커피머신"},
+  {k:["냉장고","간식"], at:() => ({x:915,y:125}), name:"냉장고"},
+  {k:["탕비실"], at:i => [{x:765,y:150},{x:915,y:150},{x:800,y:240},{x:880,y:240}][i % 4], name:"탕비실"},
+  {k:["화장실","손"], at:i => [{x:212,y:500},{x:290,y:500}][i % 2], name:"화장실"},
+  {k:["소파"], at:i => [{x:420,y:545},{x:480,y:545}][i % 2], name:"소파"},
+  {k:["티비","TV","tv","텔레비전"], at:i => [{x:610,y:455},{x:650,y:455}][i % 2], name:"TV 앞"},
+  {k:["휴게실","쉬"], at:i => [{x:420,y:545},{x:480,y:545},{x:385,y:455},{x:630,y:470},{x:560,y:470},{x:600,y:575},{x:450,y:480},{x:650,y:540}][i % 8], name:"휴게실"},
+  {k:["책장","책"], at:i => [{x:770,y:450},{x:905,y:450}][i % 2], name:"책장"},
+  {k:["프린터","복합기","출력"], at:() => ({x:840,y:550}), name:"복합기"},
+  {k:["자료실"], at:i => [{x:770,y:480},{x:905,y:480},{x:840,y:530},{x:800,y:520}][i % 4], name:"자료실"},
+  {k:["엘리베이터"], at:i => ({x:122 - (i % 2) * 10, y:578 - Math.floor(i / 2) * 20}), name:"엘리베이터 앞"},
+  {k:["업무","책상","자리"], at:(i, c) => DESK[c.id] || c.home, name:"자리"},
+  {k:["복도"], at:i => ({x:300 + i * 60, y:CY}), name:"복도"},
+  {k:["정수기","물"], at:() => ({x:690,y:330}), name:"정수기"},
+];
+
+/* ---------- characters as sprites ---------- */
+const HOME = {rakko:DESK.rakko, chiikawa:DESK.chiikawa, hachiware:DESK.hachiware, usagi:DESK.usagi,
+  momonga:{x:560,y:520}, kurimanju:{x:840,y:200}, shisa:{x:800,y:525}, kani:{x:915,y:575}};
+const LINES = {rakko:["오늘도 평화롭군","보고서 확인 중"], chiikawa:["…!","와아…","할 수 있어…!"], hachiware:["오늘 날씨 좋다~","뭐든 해보는 거야!"],
+  usagi:["우라!","야하!","푸루루…","하아?"], momonga:["나 귀엽지?","칭찬해줘!"], kurimanju:["하아…","캬~"], shisa:["열심히 할게요~!","와아~"], kani:["(독서 중)","…?"]};
+const ALIAS = {rakko:["랏코","라코","팀장"], chiikawa:["치이카와","치이","치카와"], hachiware:["하치와레","하치"], usagi:["우사기","토끼"],
+  momonga:["모몽가","모몽"], kurimanju:["쿠리만쥬","쿠리만주","쿠리"], shisa:["시사"], kani:["카니"]};
+const loader = new THREE.TextureLoader();
+const CH = [];
+const ring = new THREE.Mesh(new THREE.RingGeometry(22, 28, 32), new THREE.MeshBasicMaterial({ color: "#ff8fb1", transparent: true, opacity: .9 }));
+ring.rotation.x = -Math.PI/2; ring.visible = false; scene.add(ring);
+for (const id of Object.keys(HOME)){
+  const h = HOME[id];
+  const c = {id, name:NAMES[id], x:h.x, y:h.y, home:h, path:[], resolve:null, t:Math.random()*10, act:null, manual:0, face:1};
+  const tex = loader.load(`img/${id}.png`, t => {
+    const a = t.image.width / t.image.height, H = 62 * (t.image.height / 175);
+    c.sprite.scale.set(H * a, H, 1); c.H = H;
+    c.bubO.position.y = H + 14;
+  });
+  tex.colorSpace = THREE.SRGBColorSpace;
+  c.mat = new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: .1 });
+  c.sprite = new THREE.Sprite(c.mat); c.sprite.center.set(.5, 0); c.sprite.scale.set(60, 60, 1); c.sprite.userData.c = c; c.H = 60;
+  c.obj = new THREE.Group(); c.obj.add(c.sprite); scene.add(c.obj);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(18, 20), new THREE.MeshBasicMaterial({ color: "#000", transparent: true, opacity: .14, depthWrite: false }));
+  shadow.rotation.x = -Math.PI/2; shadow.position.y = .9; c.obj.add(shadow);
+  const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = c.name; c.nmEl = nm;
+  const nmO = new CSS2DObject(nm); nmO.position.y = 0; c.obj.add(nmO);
+  const bub = document.createElement("div"); bub.className = "bub"; c.bubEl = bub;
+  c.bubO = new CSS2DObject(bub); c.bubO.position.y = 74; c.obj.add(c.bubO);
+  CH.push(c);
+}
+const BY = Object.fromEntries(CH.map(c => [c.id, c]));
+function say(c, text, ms = 2600){
+  c.bubEl.textContent = text; c.bubEl.classList.toggle("show", !!text);
+  clearTimeout(c.bubT); if (text && ms) c.bubT = setTimeout(() => c.bubEl.classList.remove("show"), ms);
+}
+function walk(c, to){
+  if (c.resolve){ const r = c.resolve; c.resolve = null; r(false); }
+  c.act = null; c.mat.rotation = 0;
+  c.path = route({x:c.x, y:c.y}, to);
+  return new Promise(res => { c.resolve = res; });
+}
+function stop(c){ if (c.resolve){ const r = c.resolve; c.resolve = null; r(false); } c.path = []; c.act = null; c.mat.rotation = 0; }
+
+/* ---------- selection & tap-to-move ---------- */
+let selected = null;
+function select(c){
+  selected = c;
+  CH.forEach(o => o.nmEl.classList.toggle("on", o === c));
+  document.querySelectorAll("#who .chip").forEach(b => b.classList.toggle("on", b.dataset.id === c?.id));
+  ring.visible = !!c;
+  $("sel").hidden = !c; if (c) $("sel").textContent = `${c.name} 선택됨 · 바닥을 누르면 그쪽으로 가요`;
+}
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+let down = null;
+renderer.domElement.addEventListener("pointerdown", e => { down = {x:e.clientX, y:e.clientY, t:performance.now()}; });
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!down) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y), dt = performance.now() - down.t; down = null;
+  if (moved > 8 || dt > 600) return;                  // 끌기(시점 회전)는 무시
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(CH.map(c => c.sprite))[0];
+  if (hit){ const c = hit.object.userData.c; select(selected === c ? null : c); if (selected) say(c, rand(["응?","…!","부르셨어요?","왜~?"]), 1500); return; }
+  if (!selected) return;
+  const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(floorPlane, p)) return;
+  const to = clampWalk({x:p.x + 500, y:p.z + 320});
+  command(selected, () => goTo(selected, to, roomAt(to) ? ROOMS[roomAt(to)].name : "복도"));
+});
+
+/* ---------- actions ---------- */
+async function goTo(c, to, where){
+  log(`${c.name} → ${where}`);
+  const ok = await walk(c, to);
+  if (ok) say(c, rand(["도착!","여기?","왔어~","…!"]), 1600);
+  return ok;
+}
+function doAct(c, kind, text){
+  stop(c); c.act = {kind, t0:performance.now()};
+  if (kind === "sleep") say(c, "Zzz…", 0);
+  else if (kind === "dance") say(c, rand(["♪ 둠칫둠칫","♬ 랄랄라~","야하!"]), 2400);
+  else if (kind === "jump") say(c, rand(["얍!","우라!","폴짝!"]), 1400);
+  else if (kind === "spin") say(c, "빙글빙글~", 1600);
+  else if (kind === "say") say(c, text, 4000);
+}
+// 명령 실행: 한 사람에게 내린 명령은 순서대로 하고, 새 명령이 오면 하던 걸 멈춰요.
+// 사람이 시킨 일이 끝나고 30초 동안은 마음대로 돌아다니지 않아요.
+const ACT_MS = {jump:2700, dance:3500, spin:2400, say:1800};
+async function runSeq(c, steps){
+  const tag = {}; c.seq = tag;
+  for (const st of steps){
+    if (c.seq !== tag) return;
+    c.manual = Infinity;
+    const r = st();
+    if (r && r.then) await r; else if (c.act && ACT_MS[c.act.kind]) await sleep(ACT_MS[c.act.kind]);
+  }
+  if (c.seq === tag) c.manual = performance.now() + 30000;
+}
+const command = (c, fn) => runSeq(c, [fn]);
+
+/* ---------- text command parser (local, no tokens) ---------- */
+function parseOne(s, lastWho){
+  s = s.trim(); if (!s) return null;
+  const quote = s.match(/["'“”‘’「」『』](.+?)["'“”‘’「」『』]/);
+  const bare = s.replace(/["'“”‘’「」『』].+?["'“”‘’「」『』]/, " ");
+  let who = [];
+  if (/모두|다들|전부|다 같이|다같이|모든|전원|친구들/.test(bare)) who = CH.slice();
+  else for (const c of CH) if (ALIAS[c.id].some(a => bare.includes(a))) who.push(c);
+  if (!who.length && lastWho) who = lastWho;   // "그리고"로 이어진 명령은 앞사람에게
+  if (!who.length && selected) who = [selected];
+  if (!who.length) return {err:"누구에게 시킬지 모르겠어요. 이름을 넣거나 캐릭터를 먼저 눌러 주세요."};
+  if (quote || /라고|말해|외쳐/.test(bare)) return {who, run:c => doAct(c, "say", quote ? quote[1] : rand(LINES[c.id])), desc:`말하기${quote ? ` "${quote[1]}"` : ""}`};
+  if (/멈춰|정지|스톱|그만/.test(bare)) return {who, run:c => { stop(c); say(c, "멈춤!", 1200); }, desc:"멈추기"};
+  if (/일어나|깨어|기상/.test(bare)) return {who, run:c => { stop(c); say(c, "으음… 잘 잤다!", 1800); }, desc:"일어나기"};
+  if (/점프|뛰어|폴짝/.test(bare)) return {who, run:c => doAct(c, "jump"), desc:"점프"};
+  if (/춤|댄스|춰/.test(bare)) return {who, run:c => doAct(c, "dance"), desc:"춤"};
+  if (/돌아$|돌아줘|빙글|회전|한 바퀴|한바퀴/.test(bare)) return {who, run:c => doAct(c, "spin"), desc:"빙글빙글"};
+  if (/자자|자$|자줘|잠|낮잠|누워/.test(bare) && !/자리|자료|가자|하자|먹자|보자|놀자/.test(bare)) return {who, run:c => doAct(c, "sleep"), desc:"잠자기"};
+  if (/돌아와|제자리|원래 자리|집으로/.test(bare)) return {who, run:c => goTo(c, c.home, "제자리"), desc:"제자리로"};
+  const pl = PLACE.find(p => p.k.some(k => bare.includes(k)));
+  if (pl) return {who, run:(c, i) => goTo(c, pl.at(i, c), pl.name), desc:`${pl.name}(으)로`};
+  if (/따라|나한테|이리|여기/.test(bare) && selected && !who.includes(selected)) return {who, run:(c, i) => goTo(c, {x:selected.x + 40 + i * 30, y:selected.y + 10}, `${selected.name} 옆`), desc:"따라가기"};
+  return {err:`"${s}" 은(는) 아직 모르는 명령이에요. 장소 이름이나 점프·춤·자·말해 같은 말을 넣어 보세요.`};
+}
+function runCommand(text){
+  const parts = text.split(/,|，|그리고|\n|;/).map(t => t.trim()).filter(Boolean);
+  let lastWho = null; const plan = new Map();
+  for (const p of parts){
+    const r = parseOne(p, lastWho);
+    if (!r) continue;
+    if (r.err){ log(r.err, true); continue; }
+    lastWho = r.who;
+    r.who.forEach((c, i) => { if (!plan.has(c)) plan.set(c, []); plan.get(c).push(() => r.run(c, i)); });
+    log(`${r.who.length === CH.length ? "모두" : r.who.map(c => c.name).join(", ")}: ${r.desc}`);
+  }
+  for (const [c, steps] of plan) runSeq(c, steps);
+}
+$("cmdForm").addEventListener("submit", e => { e.preventDefault(); const v = $("cmd").value.trim(); if (!v) return; runCommand(v); $("cmd").value = ""; });
+
+/* UI chips */
+$("who").innerHTML = CH.map(c => `<button type="button" class="chip who" data-id="${c.id}">${c.name}</button>`).join("");
+$("who").addEventListener("click", e => { const b = e.target.closest(".chip"); if (!b) return; const c = BY[b.dataset.id]; select(selected === c ? null : c); });
+const EXAMPLES = ["모두 회의실로 모여","우사기 점프","치이카와 탕비실로 가","하치와레 '오늘도 힘내자!' 라고 말해","모두 춤","랏코 소파로 가 그리고 자","모몽가 빙글빙글 돌아","모두 제자리로"];
+$("ex").innerHTML = EXAMPLES.map(t => `<button type="button" class="chip">${t}</button>`).join("");
+$("ex").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) runCommand(b.textContent); });
+
+const history = [];
+function log(msg, bad){
+  const d = document.createElement("div"); d.textContent = `${new Date().toTimeString().slice(0, 5)}  ${msg}`; if (bad) d.className = "bad";
+  $("log").prepend(d); while ($("log").children.length > 40) $("log").lastChild.remove();
+  if (!bad){ history.push(msg); board.redraw(history); }
+}
+
+/* ---------- idle life: wander when nobody gave an order ---------- */
+const IDLE = [...PLACE.filter(p => !["업무","복도"].includes(p.k[0]))];
+setInterval(() => {
+  if (document.hidden) return;
+  const now = performance.now();
+  const free = CH.filter(c => !c.path.length && !c.act && c.manual < now && c !== selected);
+  if (!free.length) return;
+  const c = rand(free);
+  if (Math.random() < .5){ say(c, rand(LINES[c.id]), 2200); return; }
+  const p = rand(IDLE);
+  walk(c, p.at(Math.floor(Math.random() * 4), c)).then(async ok => {
+    if (!ok) return; say(c, rand(LINES[c.id]), 2200); await sleep(5000 + Math.random() * 4000);
+    if (c.manual < performance.now() && !c.path.length && !c.act) walk(c, c.home);
+  });
+}, 3800);
+
+/* ---------- animation loop ---------- */
+const clock = new THREE.Clock();
+const SPEED = 120;
+function tick(){
+  const dt = Math.min(.05, clock.getDelta()), now = performance.now();
+  for (const c of CH){
+    c.t += dt;
+    let bob = 0, rot = 0;
+    if (c.path.length){
+      const g = c.path[0], dx = g.x - c.x, dy = g.y - c.y, d = Math.hypot(dx, dy), step = SPEED * dt;
+      if (Math.abs(dx) > 1){ const f = dx < 0 ? -1 : 1; if (f !== c.face){ c.face = f; c.mat.map.repeat.x = f; c.mat.map.offset.x = f < 0 ? 1 : 0; c.mat.map.wrapS = THREE.RepeatWrapping; c.mat.map.needsUpdate = true; } }
+      if (d <= step){ c.x = g.x; c.y = g.y; c.path.shift(); } else { c.x += dx / d * step; c.y += dy / d * step; }
+      bob = Math.abs(Math.sin(c.t * 12)) * 5; rot = Math.sin(c.t * 12) * .1;
+      if (!c.path.length){ const r = c.resolve; c.resolve = null; r && r(true); }
+    } else if (c.act){
+      const e = (now - c.act.t0) / 1000;
+      if (c.act.kind === "jump"){ bob = Math.max(0, Math.sin(e * 7)) * 30; if (e > 2.7) c.act = null; }
+      else if (c.act.kind === "dance"){ bob = Math.abs(Math.sin(e * 8)) * 12; rot = Math.sin(e * 6) * .35; if (e > 6) c.act = null; }
+      else if (c.act.kind === "spin"){ rot = e * 8; if (e > 2.4){ c.act = null; rot = 0; } }
+      else if (c.act.kind === "sleep"){ rot = Math.PI / 2 * .9; bob = 4; }
+      else if (c.act.kind === "say"){ bob = Math.abs(Math.sin(e * 5)) * 3; if (e > 3) c.act = null; }
+    }
+    c.mat.rotation = rot;
+    c.obj.position.copy(W(c.x, c.y)); c.sprite.position.y = bob;
+  }
+  if (selected){ ring.position.copy(W(selected.x, selected.y)); ring.position.y = 1.2; ring.material.opacity = .6 + Math.sin(now / 200) * .3; }
+  controls.update();
+  renderer.render(scene, camera); labels.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+resize(); camHome(); tick();
+log("출근 완료! 캐릭터를 누르거나 명령을 써 보세요.");
+setTimeout(() => say(BY.hachiware, "오늘도 힘내자~!", 2600), 800);
+</script>
+</body>
+</html>
