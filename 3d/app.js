@@ -743,6 +743,7 @@ function partnerFor(c){
 /* ================= doing actions ================= */
 async function doAction(c, key, opts = {}){
   const A = ACTIONS[key], tag = c.seq, alive = () => c.seq === tag;
+  const mine = () => { if (alive()) c.cur = null; return false; };   // 새 명령이 왔으면 c.cur는 새 명령 것이라 지우지 않아요
   if (!allowed(c, key)){ say(c, A?.only ? "그건 내 특기가 아니야…" : "지금은 못 해…", 1800); return false; }
   c.cur = key; say(c, `${A.emo} ${A.name}`, 1800);
   let partner = null, ptag = null;
@@ -752,15 +753,15 @@ async function doAction(c, key, opts = {}){
     partner.seq = {}; stop(partner); partner.cur = key; ptag = partner.seq;
     const place = opts.at || (A.place ? rand(A.place) : null), tf = place ? place.f : c.floor;
     const [ta, tb] = await Promise.all([travel(c, tf), travel(partner, tf)]);
-    if (!ta || !alive()){ if (partner.seq === ptag) partner.cur = null; c.cur = null; return false; }
-    if (!tb){ partner.cur = null; c.cur = null; return false; }
+    if (!ta || !alive()){ if (partner.seq === ptag) partner.cur = null; return mine(); }
+    if (!tb){ if (partner.seq === ptag) partner.cur = null; return mine(); }
     const spot = place || clampWalk({x:(c.x + partner.x) / 2, y:(c.y + partner.y) / 2}, c.floor);
     const [a, b] = await Promise.all([walk(c, {x:spot.x - 24, y:spot.y}), walk(partner, {x:spot.x + 24, y:spot.y})]);
-    if (!a || !alive()){ if (partner.seq === ptag) partner.cur = null; c.cur = null; return false; }
+    if (!a || !alive()){ if (partner.seq === ptag) partner.cur = null; return mine(); }
     if (!b || partner.seq !== ptag) partner = null;
   } else if (A.at || opts.at){
     const p = opts.at || A.at(opts.i, c); if (!p){ c.cur = null; return false; }
-    if (!await walkTo(c, p) || !alive()){ c.cur = null; return false; }
+    if (!await walkTo(c, p) || !alive()) return mine();
   } else stop(c);
   const both = () => partner && partner.seq === ptag ? [c, partner] : [c];
   c.act = {kind:A.anim || "busy", t0:performance.now()};
@@ -768,7 +769,7 @@ async function doAction(c, key, opts = {}){
   const mult = key === "coffee" && S.up.coffee2 ? 1.5 : 1;
   for (let s = 0; s < A.dur; s++){
     await sleep(1000);
-    if (!alive()){ c.cur = null; if (partner && partner.seq === ptag){ partner.cur = null; partner.act = null; } return false; }
+    if (!alive()){ if (partner && partner.seq === ptag){ partner.cur = null; partner.act = null; } return mine(); }
     for (const who of both()){
       for (const [k, v] of Object.entries(A.eff)) who.needs[k] = clamp(who.needs[k] + v * mult + NEEDS.find(n => n.k === k).decay, 0, 100);
       addXP(who, 2, A.skill);
@@ -1722,7 +1723,14 @@ function setControls(on){
   $("ctrlBtn").setAttribute("aria-pressed", String(on)); $("ctrlBtn").textContent = on ? "3D 조작 켬" : "3D 조작 끔";
 }
 $("ctrlBtn").onclick = () => setControls(!controls.enabled);
-setControls(!MOBILE);
+setControls(true);   // 처음엔 켜 둬요 (휴대폰에서 페이지를 스크롤하고 싶을 때만 끄기)
+// 확대·축소 버튼: 두 손가락이나 휠이 어려울 때도 쓸 수 있게
+function zoom(k){
+  camTween = null; if (camMode === "orbit"){ controls.autoRotate = false; camMode = "default"; $("camSel").value = "default"; }
+  const d = camera.position.clone().sub(controls.target), len = clamp(d.length() * k, controls.minDistance, controls.maxDistance);
+  camera.position.copy(controls.target).add(d.setLength(len)); controls.update();
+}
+$("zoomIn").onclick = () => zoom(.8); $("zoomOut").onclick = () => zoom(1.25);
 
 /* ================= animation loop ================= */
 const clock = new THREE.Clock();
@@ -1791,7 +1799,7 @@ applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); re
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent, renderer, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
+window.__office = {CH, S, ESC, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
 if (DEV){   // ?dev=1 로 열면 그리기 요청·메모리 숫자를 보여 줘요 (일반 사용자에게는 숨김)
   const d = $("devStats"); d.hidden = false; let frames = 0, t0 = performance.now();
   const loop = () => { frames++; const now = performance.now(); if (now - t0 > 1000){ const i = renderer.info; d.textContent = `fps ${Math.round(frames * 1000 / (now - t0))}\ncalls ${i.render.calls}\ntris ${i.render.triangles}\ngeo ${i.memory.geometries}\ntex ${i.memory.textures}\nobjs ${registry.size}`; frames = 0; t0 = now; } requestAnimationFrame(loop); };

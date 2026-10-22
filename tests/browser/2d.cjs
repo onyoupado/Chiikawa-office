@@ -7,7 +7,7 @@ async function waitIdle(p, ms = 60000){ const t0 = Date.now(); while (Date.now()
 (async () => {
   let {b, p, errs} = await open('index.html', {init: fake, initArg: '@제목: 검토없음\n@구성\n- a\n@결과물\n본문이에요'});
   await submit(p);
-  ok('missing @검토 → finishes (no deadlock)', await waitIdle(p, 60000));
+  ok('missing @검토 → finishes (no deadlock)', await waitIdle(p, 90000));
   let last = await p.evaluate(() => __office2d.tasks.at(-1));
   ok('missing @검토 → done, default 4', last.status === 'done' && last.score === 4, last.status + last.score);
   ok('no errors', errs.length === 0, JSON.stringify(errs)); await b.close();

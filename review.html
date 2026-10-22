@@ -30,7 +30,7 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:.72rem;max-height:320px;
 확실하지 않은 내용은 &quot;추측&quot;이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1801줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
+- 3d/app.js (1809줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
 - 3d/core.js (188줄): 3D 렌더러·카메라·화질 설정과 물체 도우미 (합치기, InstancedMesh, dispose)
 - 3d/commands.js (46줄): 글 명령 해석 (순수 함수)
 - 3d/interactions.js (31줄): 사물 상호작용 등록 구조 (순수 함수)
@@ -44,7 +44,7 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:.72rem;max-height:320px;
 - shared/activity-controller.js (19줄): 긴 활동 공통 잠금
 - shared/actions.js (29줄): 2D·3D 공통 행동 문구
 - 2d/app.js (873줄): 2D 버전 로직 (업무 파이프라인, 사물 상호작용)
-- 3d.html (262줄): 3D 화면 구조와 CSS
+- 3d.html (264줄): 3D 화면 구조와 CSS
 - index.html (107줄): 2D 화면 구조
 - 2d/styles.css (278줄): 2D 스타일
 - server/proxy.mjs (84줄): 선택 서버 프록시 예시</pre></details></section>
@@ -762,7 +762,7 @@ for (const c of CH){
 const mood = c =&gt; { const v = NEEDS.map(n =&gt; c.needs[n.k]), mn = Math.min(...v), avg = v.reduce((a, b) =&gt; a + b, 0) / v.length; return clamp(avg * .7 + mn * .3, 0, 100); };
 function emotion(c){
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 4/29 · 3d/app.js</h2><button type="button" data-i="4">복사</button></div><details><summary>내용 보기 (17,964자)</summary><pre id="t4">[파트 4/29] 파일: 3d/app.js (4/8)
+<section class="part"><div class="ph"><h2>파트 4/29 · 3d/app.js</h2><button type="button" data-i="4">복사</button></div><details><summary>내용 보기 (18,028자)</summary><pre id="t4">[파트 4/29] 파일: 3d/app.js (4/8)
 ```
   if (c.act?.kind === &quot;sleep&quot;) return {emo:&quot;😴&quot;, name:&quot;쿨쿨&quot;};
   const low = NEEDS.filter(n =&gt; c.needs[n.k] &lt; 22).sort((a, b) =&gt; c.needs[a.k] - c.needs[b.k])[0];
@@ -804,6 +804,7 @@ function partnerFor(c){
 /* ================= doing actions ================= */
 async function doAction(c, key, opts = {}){
   const A = ACTIONS[key], tag = c.seq, alive = () =&gt; c.seq === tag;
+  const mine = () =&gt; { if (alive()) c.cur = null; return false; };   // 새 명령이 왔으면 c.cur는 새 명령 것이라 지우지 않아요
   if (!allowed(c, key)){ say(c, A?.only ? &quot;그건 내 특기가 아니야…&quot; : &quot;지금은 못 해…&quot;, 1800); return false; }
   c.cur = key; say(c, `${A.emo} ${A.name}`, 1800);
   let partner = null, ptag = null;
@@ -813,15 +814,15 @@ async function doAction(c, key, opts = {}){
     partner.seq = {}; stop(partner); partner.cur = key; ptag = partner.seq;
     const place = opts.at || (A.place ? rand(A.place) : null), tf = place ? place.f : c.floor;
     const [ta, tb] = await Promise.all([travel(c, tf), travel(partner, tf)]);
-    if (!ta || !alive()){ if (partner.seq === ptag) partner.cur = null; c.cur = null; return false; }
-    if (!tb){ partner.cur = null; c.cur = null; return false; }
+    if (!ta || !alive()){ if (partner.seq === ptag) partner.cur = null; return mine(); }
+    if (!tb){ if (partner.seq === ptag) partner.cur = null; return mine(); }
     const spot = place || clampWalk({x:(c.x + partner.x) / 2, y:(c.y + partner.y) / 2}, c.floor);
     const [a, b] = await Promise.all([walk(c, {x:spot.x - 24, y:spot.y}), walk(partner, {x:spot.x + 24, y:spot.y})]);
-    if (!a || !alive()){ if (partner.seq === ptag) partner.cur = null; c.cur = null; return false; }
+    if (!a || !alive()){ if (partner.seq === ptag) partner.cur = null; return mine(); }
     if (!b || partner.seq !== ptag) partner = null;
   } else if (A.at || opts.at){
     const p = opts.at || A.at(opts.i, c); if (!p){ c.cur = null; return false; }
-    if (!await walkTo(c, p) || !alive()){ c.cur = null; return false; }
+    if (!await walkTo(c, p) || !alive()) return mine();
   } else stop(c);
   const both = () =&gt; partner &amp;&amp; partner.seq === ptag ? [c, partner] : [c];
   c.act = {kind:A.anim || &quot;busy&quot;, t0:performance.now()};
@@ -829,7 +830,7 @@ async function doAction(c, key, opts = {}){
   const mult = key === &quot;coffee&quot; &amp;&amp; S.up.coffee2 ? 1.5 : 1;
   for (let s = 0; s &lt; A.dur; s++){
     await sleep(1000);
-    if (!alive()){ c.cur = null; if (partner &amp;&amp; partner.seq === ptag){ partner.cur = null; partner.act = null; } return false; }
+    if (!alive()){ if (partner &amp;&amp; partner.seq === ptag){ partner.cur = null; partner.act = null; } return mine(); }
     for (const who of both()){
       for (const [k, v] of Object.entries(A.eff)) who.needs[k] = clamp(who.needs[k] + v * mult + NEEDS.find(n =&gt; n.k === k).decay, 0, 100);
       addXP(who, 2, A.skill);
@@ -1535,7 +1536,7 @@ function addObj(id, name, f, rect, actions, spot, o = {}){
   addObj(&quot;fridge1&quot;, &quot;냉장고&quot;, 1, [885, 30, 62, 70, 110], [&quot;snack&quot;], P(1, 915, 125));
   addObj(&quot;counter1&quot;, &quot;간식 카운터&quot;, 1, [800, 40, 70, 40, 40], [&quot;snack&quot;, &quot;drink&quot;, &quot;practice&quot;], P(1, 835, 100));
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 7/29 · 3d/app.js</h2><button type="button" data-i="7">복사</button></div><details><summary>내용 보기 (18,036자)</summary><pre id="t7">[파트 7/29] 파일: 3d/app.js (7/8)
+<section class="part"><div class="ph"><h2>파트 7/29 · 3d/app.js</h2><button type="button" data-i="7">복사</button></div><details><summary>내용 보기 (18,013자)</summary><pre id="t7">[파트 7/29] 파일: 3d/app.js (7/8)
 ```
   addObj(&quot;table1&quot;, &quot;탕비실 식탁&quot;, 1, [780, 262, 120, 26, 30], [&quot;meal&quot;, &quot;snack&quot;], () =&gt; rand(S1.table));
   addObj(&quot;water&quot;, &quot;정수기&quot;, 1, [676, 298, 22, 18, 50], [&quot;water&quot;], P(1, 690, 330));
@@ -1792,11 +1793,18 @@ function setControls(on){
   $(&quot;ctrlBtn&quot;).setAttribute(&quot;aria-pressed&quot;, String(on)); $(&quot;ctrlBtn&quot;).textContent = on ? &quot;3D 조작 켬&quot; : &quot;3D 조작 끔&quot;;
 }
 $(&quot;ctrlBtn&quot;).onclick = () =&gt; setControls(!controls.enabled);
-setControls(!MOBILE);
-
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 8/29 · 3d/app.js</h2><button type="button" data-i="8">복사</button></div><details><summary>내용 보기 (5,625자)</summary><pre id="t8">[파트 8/29] 파일: 3d/app.js (8/8)
+<section class="part"><div class="ph"><h2>파트 8/29 · 3d/app.js</h2><button type="button" data-i="8">복사</button></div><details><summary>내용 보기 (6,183자)</summary><pre id="t8">[파트 8/29] 파일: 3d/app.js (8/8)
 ```
+setControls(true);   // 처음엔 켜 둬요 (휴대폰에서 페이지를 스크롤하고 싶을 때만 끄기)
+// 확대·축소 버튼: 두 손가락이나 휠이 어려울 때도 쓸 수 있게
+function zoom(k){
+  camTween = null; if (camMode === &quot;orbit&quot;){ controls.autoRotate = false; camMode = &quot;default&quot;; $(&quot;camSel&quot;).value = &quot;default&quot;; }
+  const d = camera.position.clone().sub(controls.target), len = clamp(d.length() * k, controls.minDistance, controls.maxDistance);
+  camera.position.copy(controls.target).add(d.setLength(len)); controls.update();
+}
+$(&quot;zoomIn&quot;).onclick = () =&gt; zoom(.8); $(&quot;zoomOut&quot;).onclick = () =&gt; zoom(1.25);
+
 /* ================= animation loop ================= */
 const clock = new THREE.Clock();
 const SPEED = 120, RIDE = 55;
@@ -1864,7 +1872,7 @@ applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); re
 $(&quot;coins&quot;).textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c =&gt; { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:&quot;sleep&quot;, t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent, renderer, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
+window.__office = {CH, S, ESC, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
 if (DEV){   // ?dev=1 로 열면 그리기 요청·메모리 숫자를 보여 줘요 (일반 사용자에게는 숨김)
   const d = $(&quot;devStats&quot;); d.hidden = false; let frames = 0, t0 = performance.now();
   const loop = () =&gt; { frames++; const now = performance.now(); if (now - t0 &gt; 1000){ const i = renderer.info; d.textContent = `fps ${Math.round(frames * 1000 / (now - t0))}\ncalls ${i.render.calls}\ntris ${i.render.triangles}\ngeo ${i.memory.geometries}\ntex ${i.memory.textures}\nobjs ${registry.size}`; frames = 0; t0 = now; } requestAnimationFrame(loop); };
@@ -3453,7 +3461,7 @@ setTimeout(() =&gt; say(M.hachiware, &quot;오늘도 힘내자~!&quot;, 2600), 6
 setTimeout(() =&gt; { if (!busy &amp;&amp; !M.usagi.job) wander(M.usagi); }, 1800);
 pump();
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 24/29 · 3d.html</h2><button type="button" data-i="24">복사</button></div><details><summary>내용 보기 (17,876자)</summary><pre id="t24">[파트 24/29] 파일: 3d.html (1/2)
+<section class="part"><div class="ph"><h2>파트 24/29 · 3d.html</h2><button type="button" data-i="24">복사</button></div><details><summary>내용 보기 (18,033자)</summary><pre id="t24">[파트 24/29] 파일: 3d.html (1/2)
 ```
 &lt;!doctype html&gt;
 &lt;html lang=&quot;ko&quot;&gt;
@@ -3631,12 +3639,14 @@ select.pill{appearance:auto;padding:2px 8px}
     &lt;/div&gt;
     &lt;div class=&quot;tools&quot;&gt;
       &lt;select class=&quot;pill&quot; id=&quot;camSel&quot; aria-label=&quot;카메라 시점&quot;&gt;&lt;/select&gt;
+      &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;zoomIn&quot; aria-label=&quot;확대&quot;&gt;＋&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;zoomOut&quot; aria-label=&quot;축소&quot;&gt;－&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;camReset&quot;&gt;처음 시점&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;qualityBtn&quot;&gt;화질&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;shadowBtn&quot;&gt;그림자&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;soundBtn&quot;&gt;🔇 소리&lt;/button&gt;
       &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;photoBtn&quot;&gt;📷 사진&lt;/button&gt;
-      &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;ctrlBtn&quot; aria-pressed=&quot;true&quot;&gt;3D 조작 켬&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;pill&quot; id=&quot;ctrlBtn&quot; aria-pressed=&quot;true&quot; title=&quot;끄면 화면 위에서 페이지를 스크롤할 수 있어요&quot;&gt;3D 조작 켬&lt;/button&gt;
     &lt;/div&gt;
     &lt;div class=&quot;toast&quot; id=&quot;toast&quot; role=&quot;status&quot; aria-live=&quot;polite&quot; hidden&gt;&lt;/div&gt;
     &lt;div class=&quot;sel&quot; id=&quot;sel&quot; role=&quot;status&quot; aria-live=&quot;polite&quot; hidden&gt;&lt;/div&gt;
@@ -3653,10 +3663,10 @@ select.pill{appearance:auto;padding:2px 8px}
       &lt;button class=&quot;btn&quot; type=&quot;submit&quot;&gt;명령&lt;/button&gt;
     &lt;/form&gt;
     &lt;div class=&quot;chips&quot; id=&quot;who&quot;&gt;&lt;/div&gt;
-    &lt;div class=&quot;chips&quot; id=&quot;ex&quot;&gt;&lt;/div&gt;
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 25/29 · 3d.html</h2><button type="button" data-i="25">복사</button></div><details><summary>내용 보기 (4,459자)</summary><pre id="t25">[파트 25/29] 파일: 3d.html (2/2)
+<section class="part"><div class="ph"><h2>파트 25/29 · 3d.html</h2><button type="button" data-i="25">복사</button></div><details><summary>내용 보기 (4,497자)</summary><pre id="t25">[파트 25/29] 파일: 3d.html (2/2)
 ```
+    &lt;div class=&quot;chips&quot; id=&quot;ex&quot;&gt;&lt;/div&gt;
     &lt;p class=&quot;note&quot;&gt;행동: &lt;b&gt;커피·간식·밥·물·화장실·씻어·샤워·낮잠·자·소파·TV·책·일해·회의해·운동·춤·그림·게임·피아노·보드게임·영화·바비큐·일광욕·수다&lt;/b&gt;와 캐릭터 전용 행동(&lt;b&gt;공부·노래·우라·검술·애교·한 잔·연습·정리&lt;/b&gt;). 이동: &lt;b&gt;가/와/모여&lt;/b&gt; + 장소(회의실·탕비실·화장실·휴게실·자료실·기숙사·침대·샤워실·거실·취미방·영화관·테라스·1층·2층·3층). 쉼표나 &quot;그리고&quot;로 이어 써요. 명령은 페이지 안에서 해석해서 토큰을 쓰지 않아요.&lt;/p&gt;
     &lt;div class=&quot;log&quot; id=&quot;log&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
   &lt;/section&gt;

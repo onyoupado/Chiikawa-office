@@ -17,7 +17,7 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 확실하지 않은 내용은 "추측"이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1801줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
+- 3d/app.js (1809줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
 - 3d/core.js (188줄): 3D 렌더러·카메라·화질 설정과 물체 도우미 (합치기, InstancedMesh, dispose)
 - 3d/commands.js (46줄): 글 명령 해석 (순수 함수)
 - 3d/interactions.js (31줄): 사물 상호작용 등록 구조 (순수 함수)
@@ -31,7 +31,7 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 - shared/activity-controller.js (19줄): 긴 활동 공통 잠금
 - shared/actions.js (29줄): 2D·3D 공통 행동 문구
 - 2d/app.js (873줄): 2D 버전 로직 (업무 파이프라인, 사물 상호작용)
-- 3d.html (262줄): 3D 화면 구조와 CSS
+- 3d.html (264줄): 3D 화면 구조와 CSS
 - index.html (107줄): 2D 화면 구조
 - 2d/styles.css (278줄): 2D 스타일
 - server/proxy.mjs (84줄): 선택 서버 프록시 예시
@@ -804,6 +804,7 @@ function partnerFor(c){
 /* ================= doing actions ================= */
 async function doAction(c, key, opts = {}){
   const A = ACTIONS[key], tag = c.seq, alive = () => c.seq === tag;
+  const mine = () => { if (alive()) c.cur = null; return false; };   // 새 명령이 왔으면 c.cur는 새 명령 것이라 지우지 않아요
   if (!allowed(c, key)){ say(c, A?.only ? "그건 내 특기가 아니야…" : "지금은 못 해…", 1800); return false; }
   c.cur = key; say(c, `${A.emo} ${A.name}`, 1800);
   let partner = null, ptag = null;
@@ -813,15 +814,15 @@ async function doAction(c, key, opts = {}){
     partner.seq = {}; stop(partner); partner.cur = key; ptag = partner.seq;
     const place = opts.at || (A.place ? rand(A.place) : null), tf = place ? place.f : c.floor;
     const [ta, tb] = await Promise.all([travel(c, tf), travel(partner, tf)]);
-    if (!ta || !alive()){ if (partner.seq === ptag) partner.cur = null; c.cur = null; return false; }
-    if (!tb){ partner.cur = null; c.cur = null; return false; }
+    if (!ta || !alive()){ if (partner.seq === ptag) partner.cur = null; return mine(); }
+    if (!tb){ if (partner.seq === ptag) partner.cur = null; return mine(); }
     const spot = place || clampWalk({x:(c.x + partner.x) / 2, y:(c.y + partner.y) / 2}, c.floor);
     const [a, b] = await Promise.all([walk(c, {x:spot.x - 24, y:spot.y}), walk(partner, {x:spot.x + 24, y:spot.y})]);
-    if (!a || !alive()){ if (partner.seq === ptag) partner.cur = null; c.cur = null; return false; }
+    if (!a || !alive()){ if (partner.seq === ptag) partner.cur = null; return mine(); }
     if (!b || partner.seq !== ptag) partner = null;
   } else if (A.at || opts.at){
     const p = opts.at || A.at(opts.i, c); if (!p){ c.cur = null; return false; }
-    if (!await walkTo(c, p) || !alive()){ c.cur = null; return false; }
+    if (!await walkTo(c, p) || !alive()) return mine();
   } else stop(c);
   const both = () => partner && partner.seq === ptag ? [c, partner] : [c];
   c.act = {kind:A.anim || "busy", t0:performance.now()};
@@ -829,7 +830,7 @@ async function doAction(c, key, opts = {}){
   const mult = key === "coffee" && S.up.coffee2 ? 1.5 : 1;
   for (let s = 0; s < A.dur; s++){
     await sleep(1000);
-    if (!alive()){ c.cur = null; if (partner && partner.seq === ptag){ partner.cur = null; partner.act = null; } return false; }
+    if (!alive()){ if (partner && partner.seq === ptag){ partner.cur = null; partner.act = null; } return mine(); }
     for (const who of both()){
       for (const [k, v] of Object.entries(A.eff)) who.needs[k] = clamp(who.needs[k] + v * mult + NEEDS.find(n => n.k === k).decay, 0, 100);
       addXP(who, 2, A.skill);
@@ -1801,14 +1802,21 @@ function setControls(on){
   $("ctrlBtn").setAttribute("aria-pressed", String(on)); $("ctrlBtn").textContent = on ? "3D 조작 켬" : "3D 조작 끔";
 }
 $("ctrlBtn").onclick = () => setControls(!controls.enabled);
-setControls(!MOBILE);
-
 ```
 
 ## 파트 8/29
 
 [파트 8/29] 파일: 3d/app.js (8/8)
 ```
+setControls(true);   // 처음엔 켜 둬요 (휴대폰에서 페이지를 스크롤하고 싶을 때만 끄기)
+// 확대·축소 버튼: 두 손가락이나 휠이 어려울 때도 쓸 수 있게
+function zoom(k){
+  camTween = null; if (camMode === "orbit"){ controls.autoRotate = false; camMode = "default"; $("camSel").value = "default"; }
+  const d = camera.position.clone().sub(controls.target), len = clamp(d.length() * k, controls.minDistance, controls.maxDistance);
+  camera.position.copy(controls.target).add(d.setLength(len)); controls.update();
+}
+$("zoomIn").onclick = () => zoom(.8); $("zoomOut").onclick = () => zoom(1.25);
+
 /* ================= animation loop ================= */
 const clock = new THREE.Clock();
 const SPEED = 120, RIDE = 55;
@@ -1876,7 +1884,7 @@ applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); re
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent, renderer, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
+window.__office = {CH, S, ESC, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
 if (DEV){   // ?dev=1 로 열면 그리기 요청·메모리 숫자를 보여 줘요 (일반 사용자에게는 숨김)
   const d = $("devStats"); d.hidden = false; let frames = 0, t0 = performance.now();
   const loop = () => { frames++; const now = performance.now(); if (now - t0 > 1000){ const i = renderer.info; d.textContent = `fps ${Math.round(frames * 1000 / (now - t0))}\ncalls ${i.render.calls}\ntris ${i.render.triangles}\ngeo ${i.memory.geometries}\ntex ${i.memory.textures}\nobjs ${registry.size}`; frames = 0; t0 = now; } requestAnimationFrame(loop); };
@@ -3691,12 +3699,14 @@ select.pill{appearance:auto;padding:2px 8px}
     </div>
     <div class="tools">
       <select class="pill" id="camSel" aria-label="카메라 시점"></select>
+      <button type="button" class="pill" id="zoomIn" aria-label="확대">＋</button>
+      <button type="button" class="pill" id="zoomOut" aria-label="축소">－</button>
       <button type="button" class="pill" id="camReset">처음 시점</button>
       <button type="button" class="pill" id="qualityBtn">화질</button>
       <button type="button" class="pill" id="shadowBtn">그림자</button>
       <button type="button" class="pill" id="soundBtn">🔇 소리</button>
       <button type="button" class="pill" id="photoBtn">📷 사진</button>
-      <button type="button" class="pill" id="ctrlBtn" aria-pressed="true">3D 조작 켬</button>
+      <button type="button" class="pill" id="ctrlBtn" aria-pressed="true" title="끄면 화면 위에서 페이지를 스크롤할 수 있어요">3D 조작 켬</button>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="sel" id="sel" role="status" aria-live="polite" hidden></div>
@@ -3713,13 +3723,13 @@ select.pill{appearance:auto;padding:2px 8px}
       <button class="btn" type="submit">명령</button>
     </form>
     <div class="chips" id="who"></div>
-    <div class="chips" id="ex"></div>
 ```
 
 ## 파트 25/29
 
 [파트 25/29] 파일: 3d.html (2/2)
 ```
+    <div class="chips" id="ex"></div>
     <p class="note">행동: <b>커피·간식·밥·물·화장실·씻어·샤워·낮잠·자·소파·TV·책·일해·회의해·운동·춤·그림·게임·피아노·보드게임·영화·바비큐·일광욕·수다</b>와 캐릭터 전용 행동(<b>공부·노래·우라·검술·애교·한 잔·연습·정리</b>). 이동: <b>가/와/모여</b> + 장소(회의실·탕비실·화장실·휴게실·자료실·기숙사·침대·샤워실·거실·취미방·영화관·테라스·1층·2층·3층). 쉼표나 "그리고"로 이어 써요. 명령은 페이지 안에서 해석해서 토큰을 쓰지 않아요.</p>
     <div class="log" id="log" aria-live="polite"></div>
   </section>

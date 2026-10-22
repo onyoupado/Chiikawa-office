@@ -8,6 +8,8 @@ const fakeClaude = (answer) => { window.claude = { use: async () => async () => 
   ok('legacy key purged', await p.evaluate(() => localStorage.getItem('chiikawa-office-apikey') === null && localStorage.getItem('chiikawa-office-model') === null));
   // 1 coffee
   await p.evaluate(() => { const o = __office; const c = o.CH.find(c => c.id === 'chiikawa'); o.select(c); o.useObject(c, o.registry.get('coffee'), 'coffee'); });
+  await p.waitForTimeout(1200);
+  ok('1 status shows coffee while walking', await p.evaluate(() => __office.CH.find(c => c.id === 'chiikawa').cur === 'coffee'));
   let coffeeOk = false;
   for (let i = 0; i < 30 && !coffeeOk; i++){ await p.waitForTimeout(500); coffeeOk = await p.evaluate(() => { const c = __office.CH.find(c => c.id === 'chiikawa'); return c.cur === 'coffee' || (c.stats.coffee || 0) > 0; }); }
   ok('1 coffee via object', coffeeOk);
@@ -52,6 +54,12 @@ const fakeClaude = (answer) => { window.claude = { use: async () => async () => 
   await p.evaluate(() => document.getElementById('taskGo').click());
   ok('task blocked during replay', tdis && await p.evaluate(() => __office.activity.current?.name === 'replay'));
   await p.evaluate(() => { __office.activity.cancel(); });
+  { const pos = () => p.evaluate(() => __office.camera.position.toArray().map(Math.round).join(','));
+    await p.evaluate(() => { document.getElementById('omenu').hidden = true; document.activeElement?.blur(); document.getElementById('view').scrollIntoView({block:'center'}); }); await p.waitForTimeout(300);
+    let c0 = await pos(); await p.selectOption('#camSel', 'top'); await p.waitForTimeout(1500); ok('desktop view change', (await pos()) !== c0);
+    const vb = await p.locator('#view canvas').first().boundingBox(); await p.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
+    c0 = await pos(); await p.mouse.wheel(0, -500); await p.waitForTimeout(700); ok('desktop wheel zoom', (await pos()) !== c0);
+    c0 = await pos(); await p.mouse.down(); await p.mouse.move(vb.x + vb.width / 2 + 160, vb.y + vb.height / 2, {steps: 10}); await p.mouse.up(); await p.waitForTimeout(600); ok('desktop drag rotate', (await pos()) !== c0); }
   ok('no page errors A', errs.length === 0, JSON.stringify(errs));
   await b.close();
   
@@ -131,9 +139,25 @@ const fakeClaude = (answer) => { window.claude = { use: async () => async () => 
   ({b, p, errs} = await open('3d.html', {mobile:true, reduced:true, viewport:{width:390, height:800}, quality:'mid'}));
   const m = await p.evaluate(() => ({pr: __office.renderer.getPixelRatio(), sh: __office.renderer.shadowMap.enabled, ctrl: document.getElementById('ctrlBtn').getAttribute('aria-pressed'), locked: document.getElementById('view').classList.contains('locked'),
     tap: Math.min(...[...document.querySelectorAll('.tools .pill')].map(e => e.getBoundingClientRect().height)), scroll: document.querySelector('.tools').scrollWidth > document.querySelector('.tools').clientWidth}));
-  ok('mobile DPR<=1.5, shadows off, controls off, 44px', m.pr <= 1.5 && !m.sh && m.ctrl === 'false' && m.locked && m.tap >= 44 && m.scroll, JSON.stringify(m));
+  ok('mobile DPR<=1.5, shadows off, controls ON, 44px', m.pr <= 1.5 && !m.sh && m.ctrl === 'true' && !m.locked && m.tap >= 44 && m.scroll, JSON.stringify(m));
+  const camPos = () => p.evaluate(() => __office.camera.position.toArray().map(Math.round).join(','));
+  const vb = await p.locator('#view canvas').first().boundingBox();
+  const cdp = await p.context().newCDPSession(p);
+  const touch = async (type, pts) => cdp.send('Input.dispatchTouchEvent', {type, touchPoints: pts.map(([x, y], id) => ({x, y, id}))});
+  let c0 = await camPos(), cx = vb.x + vb.width / 2, cy = vb.y + vb.height / 2;
+  await touch('touchStart', [[cx, cy]]); for (let k = 1; k <= 8; k++) await touch('touchMove', [[cx + k * 15, cy]]); await touch('touchEnd', []); await p.waitForTimeout(600);
+  ok('mobile one-finger drag rotates', (await camPos()) !== c0);
+  c0 = await camPos();
+  await touch('touchStart', [[cx - 40, cy], [cx + 40, cy]]); for (let k = 1; k <= 8; k++) await touch('touchMove', [[cx - 40 - k * 12, cy], [cx + 40 + k * 12, cy]]); await touch('touchEnd', []); await p.waitForTimeout(600);
+  ok('mobile pinch zooms', (await camPos()) !== c0);
+  const d = () => p.evaluate(() => Math.round(__office.camera.position.distanceTo(__office.controls.target)));
+  const d0 = await d(); await p.evaluate(() => document.getElementById('zoomIn').click()); const d1 = await d(); await p.evaluate(() => document.getElementById('zoomOut').click()); await p.evaluate(() => document.getElementById('zoomOut').click()); const d2 = await d();
+  ok('zoom buttons', d1 < d0 && d2 > d1, JSON.stringify([d0, d1, d2]));
+  c0 = await camPos(); await p.selectOption('#camSel', 'left'); await p.waitForTimeout(1500);
+  ok('mobile view change', (await camPos()) !== c0);
+  await p.evaluate(() => document.getElementById('ctrlBtn').click());
   const sy0 = await p.evaluate(() => scrollY); await p.mouse.wheel(0, 400); await p.waitForTimeout(400);
-  ok('page scrolls (mobile)', await p.evaluate(() => scrollY) > sy0);
+  ok('controls off → page scrolls', await p.evaluate(() => scrollY) > sy0 && await p.evaluate(() => document.getElementById('view').classList.contains('locked')));
   await p.screenshot({path: require('os').tmpdir() + '/chiikawa-mobile.png'});
   ok('no errors mobile', errs.length === 0, JSON.stringify(errs));
   await b.close();
