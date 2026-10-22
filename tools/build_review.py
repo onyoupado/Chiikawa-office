@@ -9,10 +9,24 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FILES = [
-    ("3d/app.js", "3D 버전의 모든 로직 (Three.js 장면, 건물·거리, 이동, 욕구, 관계, 과업, 상점, 이벤트, 대화, 에이전트 회의)"),
+    ("3d/app.js", "3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)"),
+    ("3d/core.js", "3D 렌더러·카메라·화질 설정과 물체 도우미 (합치기, InstancedMesh, dispose)"),
+    ("3d/commands.js", "글 명령 해석 (순수 함수)"),
+    ("3d/interactions.js", "사물 상호작용 등록 구조 (순수 함수)"),
+    ("3d/persistence.js", "3D 저장 데이터 검증·이전"),
+    ("3d/quests.js", "과업 진행·완료 판정"),
     ("3d/worklog.js", "에이전트 역할과 개발 일지 데이터"),
-    ("3d.html", "3D 버전 화면 구조와 CSS"),
-    ("index.html", "2D 버전 (한 파일에 HTML·CSS·JS, Claude 업무 지시)"),
+    ("shared/ai-client.js", "AI 연결 (claude.ai 샘플 / 서버 프록시 / 데모, 90초 시간 초과)"),
+    ("shared/parse.js", "업무 답 해석·점수 정규화·프롬프트"),
+    ("shared/storage.js", "localStorage 안전 읽기·쓰기·삭제"),
+    ("shared/markdown.js", "모델 출력용 안전한 마크다운"),
+    ("shared/activity-controller.js", "긴 활동 공통 잠금"),
+    ("shared/actions.js", "2D·3D 공통 행동 문구"),
+    ("2d/app.js", "2D 버전 로직 (업무 파이프라인, 사물 상호작용)"),
+    ("3d.html", "3D 화면 구조와 CSS"),
+    ("index.html", "2D 화면 구조"),
+    ("2d/styles.css", "2D 스타일"),
+    ("server/proxy.mjs", "선택 서버 프록시 예시"),
 ]
 CHUNK = 18000  # 휴대폰에서도 붙여 넣기 쉬운 크기
 

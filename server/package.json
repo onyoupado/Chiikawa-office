@@ -1,0 +1,8 @@
+{
+  "name": "chiikawa-office-proxy",
+  "private": true,
+  "type": "module",
+  "description": "치이카와 오피스용 선택 서버 프록시 예시 (직접 운영할 때만)",
+  "scripts": { "start": "node proxy.mjs" },
+  "dependencies": { "@anthropic-ai/sdk": "0.131.0" }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "chiikawa-office",
+  "private": true,
+  "description": "팬이 만든 비영리 치이카와 오피스 (빌드 없이 GitHub Pages에서 실행)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

@@ -6,60 +6,68 @@
 <title>치이카와 오피스 3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&family=Nanum+Gothic+Coding&display=swap">
 <style>
 /* Layout: a 3-floor 3D building you can orbit (HUD + floor tabs on top), then status/quests, chat, and tool panels below. Light office; dark mode recolors only the UI chrome, the 3D scene follows the in-game clock. */
 :root{
   --bg:#f4f7fc; --panel:#ffffff; --line:#dbe2ef; --ink:#2d3149; --muted:#6b7190;
   --pink:#ff8fb1; --blue:#6f9fd8; --yellow-soft:#fdf3c9; --ok:#3f9d6b; --bad:#d0505f;
-  --f-display:"Gaegu","Comic Sans MS",cursive; --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  /* 글꼴 3종: 대사(말풍선·채팅·회의 대사)만 손글씨, 나머지 UI는 읽기 쉬운 고딕, 시계·기록·숫자는 고정폭 */
+  --font-dialogue:"Gaegu","Comic Sans MS",cursive;
+  --font-ui:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-mono:"Nanum Gothic Coding",ui-monospace,Consolas,monospace;
+  --tap:44px;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8; --yellow-soft:#463d1e; --ok:#6cd09a; --bad:#ff8592; color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#12162a; --panel:#1b2038; --line:#2e3555; --ink:#eef0fb; --muted:#a2a8c8; --yellow-soft:#463d1e; --ok:#6cd09a; --bad:#ff8592; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:15px;line-height:1.5;
   padding:12px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}
 .wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
-h1{font-family:var(--f-display);font-size:2.1rem;line-height:1;margin:0}
-h1 small{display:block;font-family:var(--f-body);font-size:.85rem;color:var(--muted);margin-top:6px;font-weight:400}
+h1{font-family:var(--font-ui);font-size:2.1rem;line-height:1;margin:0}
+h1 small{display:block;font-family:var(--font-ui);font-size:.85rem;color:var(--muted);margin-top:6px;font-weight:400}
 header a{color:var(--blue);font-size:.85rem}
 .view{position:relative;height:min(70vh,660px);min-height:360px;border-radius:18px;overflow:hidden;border:2px solid var(--line);background:#cfe0ff;touch-action:none}
+.view.locked{touch-action:pan-y}            /* 3D 조작을 끄면 화면 위에서도 페이지가 스크롤돼요 */
+.view.hovering canvas{cursor:pointer}
 .view canvas{display:block}
 .hud{position:absolute;left:10px;top:10px;z-index:5;display:flex;flex-direction:column;gap:6px;align-items:flex-start;max-width:calc(100% - 20px)}
-.pill{font:inherit;font-size:.8rem;border:2px solid rgba(45,49,73,.15);background:rgba(255,255,255,.92);color:#2d3149;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.pill{font-family:var(--font-ui);font-size:.8rem;min-height:var(--tap);display:inline-flex;align-items:center;border:2px solid rgba(45,49,73,.15);background:rgba(255,255,255,.92);color:#2d3149;border-radius:999px;padding:3px 10px;white-space:nowrap}
 button.pill{cursor:pointer}
 button.pill[aria-pressed="true"]{border-color:#2d3149;background:#fdf3c9;font-weight:700}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.clock{font-weight:700}
+.clock{font-weight:700;font-family:var(--font-mono)}
 .tools{position:absolute;right:10px;bottom:10px;z-index:5;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:60%}
 .sel{position:absolute;left:10px;bottom:40px;z-index:5;background:rgba(255,255,255,.94);color:#2d3149;border:2px solid var(--pink);border-radius:12px;padding:4px 10px;font-size:.85rem;max-width:calc(100% - 20px)}
 .help{position:absolute;left:10px;bottom:10px;z-index:4;background:rgba(255,255,255,.85);color:#4a4f6a;border-radius:10px;padding:3px 9px;font-size:.72rem;max-width:40%}
 @media (max-width:640px){.help{display:none}}
-@media (max-width:640px){.tools{left:10px;right:10px;max-width:none;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none}.tools .pill{flex:none}.sel{bottom:52px}}
+@media (max-width:640px){.tools{left:10px;right:10px;max-width:none;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent);padding-right:28px}
+  .tools .pill{flex:none}.tools::after{content:"›";flex:none;align-self:center;font-size:1.4rem;color:#2d3149;padding:0 6px}.sel{bottom:62px}}
 .toast{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:6;background:#fff;color:#2d3149;border:2px solid #2d3149;border-radius:14px;padding:6px 12px;font-size:.88rem;box-shadow:0 4px 0 rgba(45,49,73,.25);display:flex;gap:8px;align-items:center;max-width:calc(100% - 20px)}
-.toast button{font:inherit;font-size:.8rem;border:2px solid #2d3149;background:#ff8fb1;color:#2d3149;border-radius:10px;padding:1px 8px;cursor:pointer;white-space:nowrap}
+.toast button{font-family:var(--font-ui);min-height:36px;font-size:.8rem;border:2px solid #2d3149;background:#ff8fb1;color:#2d3149;border-radius:10px;padding:1px 8px;cursor:pointer;white-space:nowrap}
 .panel{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px;min-width:0}
-.panel h2{font-family:var(--f-display);font-size:1.45rem;margin:0 0 6px;line-height:1.1}
+.panel h2{font-family:var(--font-ui);font-size:1.45rem;margin:0 0 6px;line-height:1.1}
 .grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;align-items:start}
 @media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
 .cmd{display:flex;gap:8px}
-.cmd input,.field{flex:1;min-width:0;font:inherit;border:2px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--bg);color:var(--ink)}
+.cmd input,.field{flex:1;min-width:0;font-family:var(--font-ui);font-size:1rem;min-height:var(--tap);border:2px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--bg);color:var(--ink)}
 textarea.field{width:100%;min-height:80px;resize:vertical}
 input:focus-visible,textarea:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
-.btn{font:inherit;font-family:var(--f-display);font-weight:700;font-size:1.15rem;border:2px solid var(--ink);background:var(--pink);color:#2d3149;border-radius:12px;padding:4px 16px;cursor:pointer;box-shadow:0 3px 0 var(--ink);white-space:nowrap}
+.btn{font-family:var(--font-ui);font-weight:700;font-size:1rem;min-height:var(--tap);border:2px solid var(--ink);background:var(--pink);color:#2d3149;border-radius:12px;padding:4px 16px;cursor:pointer;box-shadow:0 3px 0 var(--ink);white-space:nowrap}
 .btn:active{transform:translateY(3px);box-shadow:none}
 .btn.ghost{background:var(--panel);color:var(--ink);font-size:1rem}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.chip{font:inherit;font-size:.8rem;border:1px dashed var(--muted);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip{font-family:var(--font-ui);font-size:.85rem;min-height:var(--tap);border:1px dashed var(--muted);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;cursor:pointer}
 .chip.who{border-style:solid}
 .chip.on{background:var(--yellow-soft);color:var(--ink);border-color:var(--ink)}
 .note{font-size:.78rem;color:var(--muted);margin:8px 0 0}
-.log{font-size:.8rem;max-height:160px;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.log{font-family:var(--font-mono);font-size:.78rem;max-height:160px;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px}
 .log .bad{color:var(--bad)}
-.lv{font-family:var(--f-body);font-size:.8rem;font-weight:700;background:var(--yellow-soft);border-radius:999px;padding:1px 8px;vertical-align:middle}
+.lv{font-family:var(--font-ui);font-size:.8rem;font-weight:700;background:var(--yellow-soft);border-radius:999px;padding:1px 8px;vertical-align:middle}
 .bar{display:inline-block;flex:1;min-width:60px;height:10px;border-radius:10px;background:var(--line);overflow:hidden;vertical-align:middle}
 .bar i{display:block;height:100%;border-radius:10px;transition:width .5s}
 .xp{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--muted)}
@@ -68,19 +76,19 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,select:focus-vis
 .shead>div{flex:1;min-width:0}
 .moodline{font-size:.85rem;margin-top:4px}
 .trait{color:var(--muted);font-size:.8rem;margin-top:2px}
-.x{position:absolute;right:0;top:0;border:0;background:transparent;color:var(--muted);font-size:1.1rem;cursor:pointer}
+.x{position:absolute;right:0;top:0;border:0;background:transparent;color:var(--muted);font-size:1.1rem;cursor:pointer;min-width:var(--tap);min-height:var(--tap)}
 .needs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;margin-top:10px}
 .need{display:flex;align-items:center;gap:8px;font-size:.82rem}.need span:first-child{flex:none;width:5.5em}
 .skills{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:.8rem;color:var(--muted)}.skills b{color:var(--ink)}
 .rels{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78rem;color:var(--muted)}.rels b{color:var(--ink);font-weight:400}
 .sub{font-size:.75rem;color:var(--muted);margin:10px 0 4px;font-weight:700}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
-.act{font:inherit;font-size:.8rem;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:3px 8px;cursor:pointer}
+.act{font-family:var(--font-ui);font-size:.85rem;min-height:var(--tap);border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:3px 8px;cursor:pointer}
 .act.special{border-color:var(--pink)}
 .act.talk{background:var(--pink);color:#2d3149;border-color:var(--ink);font-weight:700}
 .team{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 @media (max-width:480px){.team{grid-template-columns:minmax(0,1fr)}}
-.trow{font:inherit;display:grid;grid-template-columns:32px auto auto 1fr;grid-template-rows:auto auto;gap:0 6px;align-items:center;text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:4px 8px;cursor:pointer}
+.trow{font-family:var(--font-ui);min-height:var(--tap);display:grid;grid-template-columns:32px auto auto 1fr;grid-template-rows:auto auto;gap:0 6px;align-items:center;text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:4px 8px;cursor:pointer}
 .trow img{grid-row:1 / 3;width:32px;height:32px;object-fit:contain}
 .trow span{font-size:.75rem;color:var(--muted)}.trow span:nth-of-type(2){justify-self:end;font-size:1rem}
 .trow small{grid-column:2 / 5;font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -89,28 +97,43 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,select:focus-vis
 .qs li small{font-size:.72rem;color:var(--muted)}
 .qs li.done span{color:var(--ok);font-weight:700}
 .chat .msgs{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:4px 2px;margin:8px 0}
-.msg{max-width:85%;padding:6px 10px;border-radius:14px;font-size:.9rem;white-space:pre-wrap;word-break:break-word}
+.msg{max-width:85%;padding:6px 12px;border-radius:14px;font-family:var(--font-dialogue);font-size:17px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
 .msg.me{align-self:flex-end;background:var(--yellow-soft);border-bottom-right-radius:4px}
 .msg.them{align-self:flex-start;background:var(--bg);border:2px solid var(--line);border-bottom-left-radius:4px}
-.msg.sys{align-self:center;font-size:.75rem;color:var(--muted);background:transparent;padding:0}
+.msg.sys{align-self:center;font-family:var(--font-ui);font-size:.78rem;line-height:1.4;color:var(--muted);background:transparent;padding:0}
 .shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
-.item{font:inherit;text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:6px 9px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.item{font-family:var(--font-ui);min-height:var(--tap);text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:6px 9px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
 .item b{font-size:.9rem}.item small{font-size:.72rem;color:var(--muted)}
 .item[disabled]{opacity:.5;cursor:default}
-details.panel summary{cursor:pointer;font-family:var(--f-display);font-weight:700;font-size:1.3rem}
+details.panel summary{cursor:pointer;font-family:var(--font-ui);font-weight:700;font-size:1.15rem;min-height:var(--tap);display:flex;align-items:center}
 .result{margin-top:10px;max-height:380px;overflow:auto;font-size:.9rem;border-top:2px dashed var(--line);padding-top:8px}
-.result h3,.result h4{font-family:var(--f-display);margin:10px 0 4px}
+.result h3,.result h4{font-family:var(--font-ui);margin:10px 0 4px}
 .result .note2{background:var(--yellow-soft);border-radius:10px;padding:6px 10px;font-size:.85rem}
 /* 3D labels (CSS2D) */
-.nm{font-size:12px;line-height:1;white-space:nowrap;background:rgba(255,255,255,.92);color:#2d3149;border:1px solid #dbe2ef;border-radius:10px;padding:2px 6px;transform:translateY(12px);pointer-events:none}
+.nm{font-family:var(--font-ui);font-size:12px;line-height:1;white-space:nowrap;background:rgba(255,255,255,.92);color:#2d3149;border:1px solid #dbe2ef;border-radius:10px;padding:2px 6px;transform:translateY(12px);pointer-events:none}
 .nm.on{border-color:#ff8fb1;background:#fff0f5;font-weight:700}
-.bub{font-family:var(--f-display);font-weight:700;font-size:16px;line-height:1.2;white-space:nowrap;background:#fff;color:#2d3149;border:2px solid #2d3149;border-radius:14px;padding:3px 10px;opacity:0;transition:opacity .2s;pointer-events:none;position:relative;transform:translateY(-8px)}
+.bub{font-family:var(--font-dialogue);font-weight:700;font-size:17px;line-height:1.3;white-space:nowrap;background:#fff;color:#2d3149;border:2px solid #2d3149;border-radius:14px;padding:3px 10px;opacity:0;transition:opacity .2s;pointer-events:none;position:relative;transform:translateY(-8px)}
 .bub.show{opacity:1}
 .bub::after{content:"";position:absolute;left:50%;bottom:-7px;width:10px;height:10px;background:#fff;border-right:2px solid #2d3149;border-bottom:2px solid #2d3149;transform:translateX(-50%) rotate(45deg)}
-.rlab{font-family:var(--f-display);font-weight:700;font-size:15px;color:#2d3149;background:rgba(255,255,255,.78);border-radius:8px;padding:0 6px;pointer-events:none;white-space:nowrap}
+.rlab{font-family:var(--font-ui);font-weight:700;font-size:15px;color:#2d3149;background:rgba(255,255,255,.78);border-radius:8px;padding:0 6px;pointer-events:none;white-space:nowrap}
 .err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:#2d3149;background:rgba(255,255,255,.92);z-index:7}
 footer{font-size:.75rem;color:var(--muted);text-align:center}
 select.pill{appearance:auto;padding:2px 8px}
+/* 사물 상호작용: 이름표(마우스를 올리면), 행동 메뉴, 배치 취소 */
+.tip{position:absolute;z-index:6;pointer-events:none;background:rgba(45,49,73,.92);color:#fff;border-radius:10px;padding:4px 9px;font-size:.8rem;max-width:240px;transform:translate(-50%,calc(-100% - 12px))}
+.tip small{display:block;opacity:.8}
+.omenu{position:absolute;z-index:7;background:var(--panel);color:var(--ink);border:2px solid var(--ink);border-radius:14px;padding:8px;box-shadow:0 4px 0 rgba(45,49,73,.25);max-width:min(300px,calc(100% - 20px));display:flex;flex-direction:column;gap:6px}
+.omenu h3{margin:0;font-size:.95rem}.omenu .row{gap:6px}.omenu p{margin:0;font-size:.8rem;color:var(--muted)}
+.omenu button{font-family:var(--font-ui);font-size:.85rem;min-height:var(--tap);border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:2px 10px;cursor:pointer;text-align:left}
+.omenu button:disabled{opacity:.55;cursor:default}
+.objs{display:flex;flex-wrap:wrap;gap:6px}
+.objs .act small{display:block;font-size:.7rem;color:var(--muted)}
+.dev{position:absolute;right:10px;top:10px;z-index:6;background:rgba(0,0,0,.7);color:#9fe3c0;font-family:var(--font-mono);font-size:11px;padding:4px 8px;border-radius:8px;white-space:pre;pointer-events:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.privacy{font-size:.82rem;color:var(--ink);background:var(--bg);border-radius:12px;padding:8px 12px;margin-top:8px}
+.privacy ul{margin:4px 0;padding-left:18px}
+.result{font-family:var(--font-ui)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 .board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
 @media (max-width:700px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .bcol{background:var(--bg);border-radius:12px;padding:6px;min-height:70px;display:flex;flex-direction:column;gap:5px}
@@ -120,7 +143,8 @@ select.pill{appearance:auto;padding:2px 8px}
 .task b{font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.task small{font-size:.68rem;color:var(--muted)}
 .task.done{border-color:var(--ok)}.task.doing{border-color:var(--pink)}
 .minutes{margin-top:10px;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:4px;border-top:2px dashed var(--line);padding-top:8px}
-.mline{display:flex;gap:6px;align-items:flex-start;font-size:.85rem}.mline img{width:22px;height:22px;object-fit:contain;flex:none}.mline b{flex:none;font-size:.8rem}
+.mline{display:flex;gap:6px;align-items:flex-start;font-size:.85rem}.mline span{font-family:var(--font-dialogue);font-size:17px;line-height:1.4}
+.mline.head span,.mline.todo span{font-family:var(--font-ui);font-size:.82rem}.mline img{width:22px;height:22px;object-fit:contain;flex:none}.mline b{flex:none;font-size:.8rem}
 .mline.head{color:var(--muted);font-size:.78rem}.mline.todo span{color:var(--blue)}
 </style>
 <script type="importmap">
@@ -137,6 +161,7 @@ select.pill{appearance:auto;padding:2px 8px}
     <span class="row"><a href="./">← 2D 사무실</a><a href="review.html">🔍 코드 검수 묶음</a></span>
   </header>
 
+  <p class="sr" id="viewDesc">마우스나 손가락으로 돌려 볼 수 있는 3D 화면이에요. 화면을 쓰지 않아도 아래 '팀 상태'와 '주변 사물' 버튼, 명령 입력으로 모든 조작을 할 수 있어요.</p>
   <div class="view" id="view">
     <div class="hud">
       <div class="row"><span class="pill clock" id="clock">☀️ 08:30</span><button type="button" class="pill" id="speed">시간 ×1</button><span class="pill" id="coins">🪙 0</span></div>
@@ -154,10 +179,15 @@ select.pill{appearance:auto;padding:2px 8px}
       <button type="button" class="pill" id="shadowBtn">그림자</button>
       <button type="button" class="pill" id="soundBtn">🔇 소리</button>
       <button type="button" class="pill" id="photoBtn">📷 사진</button>
+      <button type="button" class="pill" id="ctrlBtn" aria-pressed="true">3D 조작 켬</button>
     </div>
-    <div class="toast" id="toast" hidden></div>
-    <div class="sel" id="sel" hidden></div>
-    <div class="help">한 손가락: 회전 · 두 손가락: 확대/이동 · 캐릭터 누르고 바닥 누르기: 이동</div>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <div class="sel" id="sel" role="status" aria-live="polite" hidden></div>
+    <button type="button" class="pill" id="placeCancel" hidden style="position:absolute;left:10px;bottom:84px;z-index:6;background:#fff0f5">✕ 배치 취소 (Esc)</button>
+    <div class="tip" id="tip" hidden></div>
+    <div class="omenu" id="omenu" role="dialog" aria-label="사물 행동 고르기" hidden></div>
+    <div class="dev" id="devStats" hidden></div>
+    <div class="help">한 손가락: 회전 · 두 손가락: 확대/이동 · 캐릭터를 고르고 사물이나 바닥 누르기</div>
   </div>
 
   <section class="panel">
@@ -201,21 +231,32 @@ select.pill{appearance:auto;padding:2px 8px}
   <details class="panel" id="taskPanel">
     <summary>📋 업무 지시 (Claude)</summary>
     <p class="note" id="taskMode"></p>
+    <label for="taskIn" class="sub" style="display:block">업무 내용</label>
     <textarea class="field" id="taskIn" placeholder="예: 다음 주 팀 회식 장소 후보 3곳과 공지 문구 만들어줘"></textarea>
-    <div class="row" style="margin-top:8px"><button class="btn" type="button" id="taskGo">지시하기</button></div>
-    <div class="result" id="taskOut" hidden></div>
+    <div class="row" style="margin-top:8px"><button class="btn" type="button" id="taskGo">지시하기</button><button class="btn ghost" type="button" id="taskStop" hidden>멈추기</button>
+      <button class="btn ghost" type="button" id="taskCopy">프롬프트 복사</button><button class="btn ghost" type="button" id="taskPasteBtn">답 붙여 넣기</button></div>
+    <div id="taskPaste" hidden style="margin-top:8px"><label for="taskPasteIn" class="sub" style="display:block">Claude에게 받은 답 (형식: @제목 / @결과물 / @검토)</label>
+      <textarea class="field" id="taskPasteIn"></textarea><div class="row" style="margin-top:6px"><button class="btn ghost" type="button" id="taskPasteGo">결과 정리하기</button></div></div>
+    <div class="result" id="taskOut" role="status" aria-live="polite" aria-busy="false" hidden></div>
   </details>
 
-  <details class="panel" id="keyPanel">
-    <summary>🔑 Claude 연결 (대화·업무용)</summary>
-    <p class="note">키를 넣으면 캐릭터와의 대화와 업무 지시를 Claude가 해요. 키가 없으면 대화는 미리 정해 둔 대사로, 업무는 예시 결과물로 동작해요(토큰 0). 키는 이 브라우저에만 저장되고 Anthropic에만 보내져요. 사용료는 키 주인 계정으로 나가요. 2D 사무실에서 넣은 키도 그대로 써요.</p>
-    <div class="row"><input class="field" id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" aria-label="Anthropic API 키">
-      <select class="field" id="apiModel" aria-label="모델" style="flex:0 1 auto"><option value="claude-opus-5-5">Opus 5.5 (기본)</option><option value="claude-sonnet-5-5">Sonnet 5.5</option><option value="claude-haiku-5-5">Haiku 5.5 (가장 저렴)</option></select></div>
-    <div class="row" style="margin-top:8px"><button class="btn ghost" type="button" id="keySave">저장</button><button class="btn ghost" type="button" id="keyDel">키 지우기</button></div>
+  <details class="panel" id="aiPanel">
+    <summary>🔒 Claude 연결 · 기록과 개인정보</summary>
+    <p class="note" id="aiState" role="status"></p>
+    <div id="codeRow" class="row" hidden><label for="accessCode" class="sr">접속 코드</label><input class="field" id="accessCode" type="password" autocomplete="off" placeholder="관리자에게 받은 접속 코드">
+      <button class="btn ghost" type="button" id="codeSet">연결</button><button class="btn ghost" type="button" id="codeClear">연결 끊기</button></div>
+    <div class="privacy">
+      <b>이 브라우저에 저장되는 것</b>
+      <ul><li>3D 사무실 진행 상황(코인·레벨·가구·과업·관계)과 캐릭터별 대화 기록 최근 20개</li><li>화질 설정</li><li>2D 사무실의 업무 기록</li></ul>
+      <b>저장하지 않는 것</b>: API 키·접속 코드 (접속 코드는 이 탭의 메모리에만 있고, 탭을 닫으면 사라져요)<br>
+      <b>밖으로 보내는 것</b>: Claude가 연결됐을 때만, 내가 쓴 대화·업무 내용을 claude.ai(아티팩트 안) 또는 설정된 서버 프록시로 보내요. 데모 모드에서는 아무것도 보내지 않아요.
+    </div>
+    <div class="row" style="margin-top:8px"><button class="btn ghost" type="button" id="clearChats">대화 기록 지우기</button><button class="btn ghost" type="button" id="clearAll">로컬 기록 모두 삭제</button></div>
   </details>
 
   <footer>팬이 만든 비영리·비공식 프로젝트예요. 치이카와 캐릭터의 권리는 원작자 나가노에게 있어요. 캐릭터 성격과 행동은 팬의 해석이에요.</footer>
 </div>
+<script src="config.js"></script>
 <script type="module" src="3d/app.js"></script>
 </body>
 </html>
