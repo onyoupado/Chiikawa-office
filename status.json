@@ -1,5 +1,5 @@
 {
-  "state": "working",
+  "state": "idle",
   "title": "층 표시·바깥 손님·실시간 동기화",
   "request": "다른 층 캐릭터 숨기기, 정문으로 오는 손님·택배·배달, 터미널 작업 동기화",
   "steps": [
@@ -21,8 +21,13 @@
     {
       "who": "usagi",
       "title": "시나리오 시험",
-      "status": "doing"
+      "status": "done"
+    },
+    {
+      "who": "kurimanju",
+      "title": "아티팩트·Pages 배포",
+      "status": "done"
     }
   ],
-  "updatedAt": "2026-10-23T08:46:51.962Z"
+  "updatedAt": "2026-10-23T09:16:19.200Z"
 }
