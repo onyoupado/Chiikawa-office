@@ -8,7 +8,7 @@
 
 지도 위 층 버튼으로 1F·2F·3F를 바꿔 볼 수 있어요.
 
-**바로 보기:** https://onyoupado.github.io/Chiikawa-office/
+**바로 보기:** https://onyoupado.github.io/Chiikawa-office/ · claude.ai 아티팩트: https://claude.ai/artifact/U4fT3Hf2L8Up2zPpXpix2v
 
 ## 3D 버전 (베타)
 
