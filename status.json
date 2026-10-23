@@ -1,0 +1,28 @@
+{
+  "state": "working",
+  "title": "층 표시·바깥 손님·실시간 동기화",
+  "request": "다른 층 캐릭터 숨기기, 정문으로 오는 손님·택배·배달, 터미널 작업 동기화",
+  "steps": [
+    {
+      "who": "hachiware",
+      "title": "다른 층 캐릭터 숨기기",
+      "status": "done"
+    },
+    {
+      "who": "chiikawa",
+      "title": "정문·로비와 바깥 손님",
+      "status": "done"
+    },
+    {
+      "who": "shisa",
+      "title": "터미널 작업 동기화",
+      "status": "done"
+    },
+    {
+      "who": "usagi",
+      "title": "시나리오 시험",
+      "status": "doing"
+    }
+  ],
+  "updatedAt": "2026-10-23T08:46:51.962Z"
+}
