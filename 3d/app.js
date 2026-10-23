@@ -16,6 +16,17 @@ import { ACT_WORDS, findAct, parseCommand } from "./commands.js";
 import { questMatches, advanceQuest, markQuestDone } from "./quests.js";
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
+// 확인 상자: 브라우저 confirm() 대신 페이지 안 상자를 써요 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
+function ask(msg, okText = "네"){
+  return new Promise(res => {
+    const d = $("askBox"); $("askMsg").textContent = msg; $("askOk").textContent = okText; d.hidden = false;
+    const back = document.activeElement;
+    const done = v => { d.hidden = true; $("askOk").onclick = $("askNo").onclick = null; d.onkeydown = null; back?.focus?.(); res(v); };
+    $("askOk").onclick = () => done(true); $("askNo").onclick = () => done(false);
+    d.onkeydown = e => { if (e.key === "Escape"){ e.stopPropagation(); done(false); } };
+    $("askNo").focus();
+  });
+}
 const registry = createRegistry();            // 상호작용하는 사물들
 const unregisterObj = id => registry.unregister(id);
 let decorSeq = 0, eventAction = null;
@@ -562,8 +573,8 @@ function camTick(dt){
   }
 }
 $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켬" : "그림자 끔";
-$("shadowBtn").onclick = () => {
-  if (!renderer.shadowMap.enabled && MOBILE && !confirm("그림자를 켜면 휴대폰이 느려지거나 뜨거워질 수 있어요. 켤까요?")) return;
+$("shadowBtn").onclick = async () => {
+  if (!renderer.shadowMap.enabled && MOBILE && !await ask("그림자를 켜면 휴대폰이 느려지거나 뜨거워질 수 있어요. 켤까요?")) return;
   renderer.shadowMap.enabled = !renderer.shadowMap.enabled; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켬" : "그림자 끔"; };
 
 /* ================= time of day ================= */
@@ -1043,12 +1054,12 @@ function connUI(){
 }
 $("codeSet").onclick = () => { setAccessCode($("accessCode").value); $("accessCode").value = ""; connUI(); log(isConnected() ? "🔒 서버 프록시에 연결했어요 (접속 코드는 저장하지 않아요)" : "접속 코드를 넣어 주세요", !isConnected()); };
 $("codeClear").onclick = () => { setAccessCode(""); connUI(); };
-$("clearChats").onclick = () => {
-  if (!confirm("모든 캐릭터와의 대화 기록을 지울까요?")) return;
+$("clearChats").onclick = async () => {
+  if (!await ask("모든 캐릭터와의 대화 기록을 지울까요?")) return;
   CH.forEach(c => { c.chatLog = []; }); renderChat(); save(); log("💬 대화 기록을 지웠어요");
 };
-$("clearAll").onclick = () => {
-  if (!confirm("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황, 대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
+$("clearAll").onclick = async () => {
+  if (!await ask("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황, 대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
   resetting = true; clearAllLocal(); location.reload();
 };
 initAI().then(connUI);
@@ -1189,13 +1200,21 @@ $("taskGo").onclick = async () => {
 };
 
 /* ================= photo ================= */
-$("photoBtn").onclick = () => {
+$("photoBtn").onclick = async () => {
   renderer.render(scene, camera);
   const src = renderer.domElement, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height;
   const g = cv.getContext("2d"); g.drawImage(src, 0, 0);
   const s = cv.width / 900; g.fillStyle = "rgba(255,255,255,.85)"; g.fillRect(12 * s, cv.height - 52 * s, 330 * s, 40 * s);
   g.fillStyle = "#2d3149"; g.font = `bold ${20 * s}px ${FONT.ui}`; g.fillText(`치이카와 오피스 · ${$("clock").textContent}`, 22 * s, cv.height - 25 * s);
-  const a = document.createElement("a"); a.href = cv.toDataURL("image/png"); a.download = `chiikawa-office-${Date.now()}.png`; a.click();
+  const name = `chiikawa-office-${Date.now()}.png`;
+  // claude.ai 아티팩트 안에서는 downloads 기능으로 저장을 물어보고, 그 밖에서는 바로 내려받아요
+  let dl = null; try { dl = window.claude?.use ? await window.claude.use("downloads") : null; } catch (e) {}
+  if (dl){
+    const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+    try { await dl.save({filename:name, data:blob}); log("📷 사진을 저장했어요"); } catch (e) { log(e?.code === "declined" ? "사진 저장을 취소했어요" : "사진을 저장하지 못했어요", e?.code !== "declined"); }
+    return;
+  }
+  const a = document.createElement("a"); a.href = cv.toDataURL("image/png"); a.download = name; a.click();
   log("📷 사진을 저장했어요");
 };
 
@@ -1708,9 +1727,9 @@ $("status").addEventListener("click", e => {
   log(`${c.name}: ${ACTIONS[k].name}`); emit("cmd", c);
   runSeq(c, [() => doAction(c, k)]);
 });
-$("quests").addEventListener("click", e => {
+$("quests").addEventListener("click", async e => {
   if (!e.target.closest("#resetSave")) return;
-  if (!confirm("레벨, 경험치, 코인, 가구, 과업, 관계를 모두 처음으로 되돌릴까요?")) return;
+  if (!await ask("레벨, 경험치, 코인, 가구, 과업, 관계를 모두 처음으로 되돌릴까요?")) return;
   resetting = true;
   writeJSON(SAVE_KEY, null); try { localStorage.removeItem(SAVE_KEY); } catch (err) {}
   location.reload();
@@ -1789,9 +1808,9 @@ function tick(){
   console.info(`[치이카와 오피스] 정적 물체 ${b}개 → ${a}개로 합침 · 화질 ${Q.name}`);
 }
 $("qualityBtn").textContent = `화질: ${Q.name}`;
-$("qualityBtn").onclick = () => {
+$("qualityBtn").onclick = async () => {
   const next = {low:"mid", mid:"high", high:"low"}[QUALITY] || "mid";
-  if (!confirm(`화질을 '${({low:"가볍게", mid:"보통", high:"고화질"})[next]}'(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
+  if (!await ask(`화질을 '${({low:"가볍게", mid:"보통", high:"고화질"})[next]}'(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
   writeStr(KEYS.quality, next);
   save(); location.reload();
 };

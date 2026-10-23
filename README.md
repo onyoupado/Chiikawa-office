@@ -12,7 +12,7 @@
 
 ## 3D 버전 (베타)
 
-**링크:** https://onyoupado.github.io/Chiikawa-office/3d.html
+**링크:** https://onyoupado.github.io/Chiikawa-office/3d.html · claude.ai 아티팩트: https://claude.ai/artifact/9PudZt5Z3E3N53G8JZsaF5 (아티팩트 안에서는 키 없이 Claude 대화·업무가 동작해요. 공유 설정에 따라 열람 가능 여부가 달라요)
 
 Three.js로 만든 진짜 3D 건물이에요. 1F 사무실, 2F 기숙사, 3F 취미층(취미방·영화관·외부 테라스)이 있어요.
 

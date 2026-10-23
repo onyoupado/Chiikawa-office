@@ -17,7 +17,7 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 확실하지 않은 내용은 "추측"이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1809줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
+- 3d/app.js (1828줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
 - 3d/core.js (188줄): 3D 렌더러·카메라·화질 설정과 물체 도우미 (합치기, InstancedMesh, dispose)
 - 3d/commands.js (46줄): 글 명령 해석 (순수 함수)
 - 3d/interactions.js (31줄): 사물 상호작용 등록 구조 (순수 함수)
@@ -31,7 +31,7 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 - shared/activity-controller.js (19줄): 긴 활동 공통 잠금
 - shared/actions.js (29줄): 2D·3D 공통 행동 문구
 - 2d/app.js (873줄): 2D 버전 로직 (업무 파이프라인, 사물 상호작용)
-- 3d.html (264줄): 3D 화면 구조와 CSS
+- 3d.html (271줄): 3D 화면 구조와 CSS
 - index.html (107줄): 2D 화면 구조
 - 2d/styles.css (278줄): 2D 스타일
 - server/proxy.mjs (84줄): 선택 서버 프록시 예시
@@ -59,6 +59,17 @@ import { ACT_WORDS, findAct, parseCommand } from "./commands.js";
 import { questMatches, advanceQuest, markQuestDone } from "./quests.js";
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
+// 확인 상자: 브라우저 confirm() 대신 페이지 안 상자를 써요 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
+function ask(msg, okText = "네"){
+  return new Promise(res => {
+    const d = $("askBox"); $("askMsg").textContent = msg; $("askOk").textContent = okText; d.hidden = false;
+    const back = document.activeElement;
+    const done = v => { d.hidden = true; $("askOk").onclick = $("askNo").onclick = null; d.onkeydown = null; back?.focus?.(); res(v); };
+    $("askOk").onclick = () => done(true); $("askNo").onclick = () => done(false);
+    d.onkeydown = e => { if (e.key === "Escape"){ e.stopPropagation(); done(false); } };
+    $("askNo").focus();
+  });
+}
 const registry = createRegistry();            // 상호작용하는 사물들
 const unregisterObj = id => registry.unregister(id);
 let decorSeq = 0, eventAction = null;
@@ -278,18 +289,18 @@ const ESC = [
   {id:"23d", lane:1100, f0:3, y0:590, f1:2, y1:340, before:[{x:1155,y:600}], after:[{x:1155,y:335}]},
 ];
 const stepCanvas = document.createElement("canvas"); stepCanvas.width = 32; stepCanvas.height = 32;
-{ const g = stepCanvas.getContext("2d"); g.fillStyle = "#8a93a8"; g.fillRect(0, 0, 32, 32); g.fillStyle = "#5d6578"; g.fillRect(0, 0, 32, 5); g.fillStyle = "#ffd36b"; g.fillRect(0, 0, 2, 32); g.fillRect(30, 0, 2, 32); }
-for (const e of ESC){
-  const up = e.f1 > e.f0, low = up ? [e.y0, e.f0] : [e.y1, e.f1], high = up ? [e.y1, e.f1] : [e.y0, e.f0];
-  const dy = high[0] - low[0], L = Math.hypot(dy, FH), a = Math.atan2(FH, dy);
-  const g = new THREE.Group(); g.position.copy(W(e.lane, (low[0] + high[0]) / 2, 1)); g.position.y = (fy(low[1]) + fy(high[1])) / 2; g.rotation.x = -a;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(40, 10, L), mat("#c9d0dc")); body.position.y = -2; body.castShadow = body.receiveShadow = true; g.add(body);
 ```
 
 ## 파트 2/29
 
 [파트 2/29] 파일: 3d/app.js (2/8)
 ```
+{ const g = stepCanvas.getContext("2d"); g.fillStyle = "#8a93a8"; g.fillRect(0, 0, 32, 32); g.fillStyle = "#5d6578"; g.fillRect(0, 0, 32, 5); g.fillStyle = "#ffd36b"; g.fillRect(0, 0, 2, 32); g.fillRect(30, 0, 2, 32); }
+for (const e of ESC){
+  const up = e.f1 > e.f0, low = up ? [e.y0, e.f0] : [e.y1, e.f1], high = up ? [e.y1, e.f1] : [e.y0, e.f0];
+  const dy = high[0] - low[0], L = Math.hypot(dy, FH), a = Math.atan2(FH, dy);
+  const g = new THREE.Group(); g.position.copy(W(e.lane, (low[0] + high[0]) / 2, 1)); g.position.y = (fy(low[1]) + fy(high[1])) / 2; g.rotation.x = -a;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(40, 10, L), mat("#c9d0dc")); body.position.y = -2; body.castShadow = body.receiveShadow = true; g.add(body);
   const tex = new THREE.CanvasTexture(stepCanvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, L / 14); tex.colorSpace = THREE.SRGBColorSpace;
   const steps = new THREE.Mesh(new THREE.PlaneGeometry(34, L), new THREE.MeshStandardMaterial({ map: tex })); steps.rotation.x = -Math.PI / 2; steps.position.y = 3.2; g.add(steps);
   for (const sx of [-19, 19]){
@@ -513,6 +524,12 @@ async function escalate(c, e){
 // 이동 명령 토큰: 새 명령(runSeq·stop)이 오면 c.seq가 바뀌고, 예전 비동기 이동은 await 뒤에 바로 멈춰요
 const moveTag = c => c.seq || 0;
 const cancelled = (c, tag) => moveTag(c) !== tag;
+```
+
+## 파트 3/29
+
+[파트 3/29] 파일: 3d/app.js (3/8)
+```
 function elevWant(f, c, on){ const e = ELEV[f]; on ? e.users.add(c.id) : e.users.delete(c.id); e.want = e.users.size ? 1 : 0; }
 async function elevator(c, to, tag = moveTag(c)){
   const from = c.floor;
@@ -523,12 +540,6 @@ async function elevator(c, to, tag = moveTag(c)){
     elevWant(from, c, true); await sleep(500); if (cancelled(c, tag)) return bail();
     if (!await walk(c, ELEV_IN) || cancelled(c, tag)) return bail();
     c.hidden = true; elevWant(from, c, false); await sleep(400); if (cancelled(c, tag)) return bail();
-```
-
-## 파트 3/29
-
-[파트 3/29] 파일: 3d/app.js (3/8)
-```
     for (let f = from; f !== to; f += to > from ? 1 : -1){ await sleep(800); if (cancelled(c, tag)) return bail(); for (const k of [1, 2, 3]) ELEV[k].ind.redraw(`${f + (to > from ? 1 : -1)}F`); }
     if (c.ride || c.path.length) return bail();
     c.floor = to; c.x = ELEV_IN.x; c.y = ELEV_IN.y; elevWant(to, c, true); await sleep(400); if (cancelled(c, tag)) return bail();
@@ -617,8 +628,8 @@ function camTick(dt){
   }
 }
 $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켬" : "그림자 끔";
-$("shadowBtn").onclick = () => {
-  if (!renderer.shadowMap.enabled && MOBILE && !confirm("그림자를 켜면 휴대폰이 느려지거나 뜨거워질 수 있어요. 켤까요?")) return;
+$("shadowBtn").onclick = async () => {
+  if (!renderer.shadowMap.enabled && MOBILE && !await ask("그림자를 켜면 휴대폰이 느려지거나 뜨거워질 수 있어요. 켤까요?")) return;
   renderer.shadowMap.enabled = !renderer.shadowMap.enabled; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); $("shadowBtn").textContent = renderer.shadowMap.enabled ? "그림자 켬" : "그림자 끔"; };
 
 /* ================= time of day ================= */
@@ -747,6 +758,12 @@ function applyTime(){
 }
 
 /* ================= needs, actions ================= */
+```
+
+## 파트 4/29
+
+[파트 4/29] 파일: 3d/app.js (4/8)
+```
 const allowed = (c, k) => ACTIONS[k] && !ACTIONS[k].hidden && (!ACTIONS[k].only || ACTIONS[k].only === c.id) && (!ACTIONS[k].need || ACTIONS[k].need());
 const xpNeed = lv => 60 + lv * 40;
 const skLv = xp => Math.min(10, Math.floor(Math.sqrt(xp / 15)) + 1);
@@ -758,12 +775,6 @@ for (const c of CH){
 }
 const mood = c => { const v = NEEDS.map(n => c.needs[n.k]), mn = Math.min(...v), avg = v.reduce((a, b) => a + b, 0) / v.length; return clamp(avg * .7 + mn * .3, 0, 100); };
 function emotion(c){
-```
-
-## 파트 4/29
-
-[파트 4/29] 파일: 3d/app.js (4/8)
-```
   if (c.act?.kind === "sleep") return {emo:"😴", name:"쿨쿨"};
   const low = NEEDS.filter(n => c.needs[n.k] < 22).sort((a, b) => c.needs[a.k] - c.needs[b.k])[0];
   if (low) return {emo:{hunger:"😣", energy:"😪", fun:"😑", social:"🥺", hygiene:"😫", bladder:"😖"}[low.k], name:low.low, need:low};
@@ -1002,6 +1013,12 @@ $("shop").addEventListener("click", e => {
     $("sel").textContent = `${DECOR[id].emo} ${DECOR[id].name}: 놓을 바닥을 눌러 주세요 (${f}층) · 아직 코인은 빠지지 않았어요`;
     if (decorOn(f) >= DECOR_WARN) log(`${f}층 가구가 ${decorOn(f)}개예요. 많아지면 휴대폰이 느려질 수 있어요`, true);
     if (viewFloor === 0) showFloor(1); view.scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block:"center"}); }
+```
+
+## 파트 5/29
+
+[파트 5/29] 파일: 3d/app.js (5/8)
+```
   if ((kind === "up" || kind === "hat") && S.coins < (kind === "up" ? UPGRADES : HATS)[id].price) return log("코인이 모자라요", true);
   if (kind === "up"){ S.coins -= UPGRADES[id].price; S.up[id] = true; addCoins(0); log(`🛠️ ${UPGRADES[id].name} 설치! ${UPGRADES[id].desc}`); }
   if (kind === "hat" && selected){ S.coins -= HATS[id].price; selected.hat = id; buildHat(selected); addCoins(0); say(selected, rand(["어때? 어울려?","와아…!","헤헤"]), 2000); log(`${HATS[id].emo} ${selected.name}에게 ${josa(HATS[id].name, "을를")} 씌웠어요`); }
@@ -1015,12 +1032,6 @@ function toast(text, btn, fn){
   const t = $("toast"); t.hidden = false; t.replaceChildren();
   const sp = document.createElement("span"); sp.textContent = text; t.append(sp);
   eventAction = null;
-```
-
-## 파트 5/29
-
-[파트 5/29] 파일: 3d/app.js (5/8)
-```
   if (btn){ const b = document.createElement("button"); b.type = "button"; b.textContent = btn; let used = false;
     const once = () => { if (used) return; used = true; b.disabled = true; fn(); };
     b.onclick = once; t.append(b); eventAction = {label:btn, fn:once}; }
@@ -1110,12 +1121,12 @@ function connUI(){
 }
 $("codeSet").onclick = () => { setAccessCode($("accessCode").value); $("accessCode").value = ""; connUI(); log(isConnected() ? "🔒 서버 프록시에 연결했어요 (접속 코드는 저장하지 않아요)" : "접속 코드를 넣어 주세요", !isConnected()); };
 $("codeClear").onclick = () => { setAccessCode(""); connUI(); };
-$("clearChats").onclick = () => {
-  if (!confirm("모든 캐릭터와의 대화 기록을 지울까요?")) return;
+$("clearChats").onclick = async () => {
+  if (!await ask("모든 캐릭터와의 대화 기록을 지울까요?")) return;
   CH.forEach(c => { c.chatLog = []; }); renderChat(); save(); log("💬 대화 기록을 지웠어요");
 };
-$("clearAll").onclick = () => {
-  if (!confirm("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황, 대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
+$("clearAll").onclick = async () => {
+  if (!await ask("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황, 대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
   resetting = true; clearAllLocal(); location.reload();
 };
 initAI().then(connUI);
@@ -1256,13 +1267,27 @@ $("taskGo").onclick = async () => {
 };
 
 /* ================= photo ================= */
-$("photoBtn").onclick = () => {
+```
+
+## 파트 6/29
+
+[파트 6/29] 파일: 3d/app.js (6/8)
+```
+$("photoBtn").onclick = async () => {
   renderer.render(scene, camera);
   const src = renderer.domElement, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height;
   const g = cv.getContext("2d"); g.drawImage(src, 0, 0);
   const s = cv.width / 900; g.fillStyle = "rgba(255,255,255,.85)"; g.fillRect(12 * s, cv.height - 52 * s, 330 * s, 40 * s);
   g.fillStyle = "#2d3149"; g.font = `bold ${20 * s}px ${FONT.ui}`; g.fillText(`치이카와 오피스 · ${$("clock").textContent}`, 22 * s, cv.height - 25 * s);
-  const a = document.createElement("a"); a.href = cv.toDataURL("image/png"); a.download = `chiikawa-office-${Date.now()}.png`; a.click();
+  const name = `chiikawa-office-${Date.now()}.png`;
+  // claude.ai 아티팩트 안에서는 downloads 기능으로 저장을 물어보고, 그 밖에서는 바로 내려받아요
+  let dl = null; try { dl = window.claude?.use ? await window.claude.use("downloads") : null; } catch (e) {}
+  if (dl){
+    const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+    try { await dl.save({filename:name, data:blob}); log("📷 사진을 저장했어요"); } catch (e) { log(e?.code === "declined" ? "사진 저장을 취소했어요" : "사진을 저장하지 못했어요", e?.code !== "declined"); }
+    return;
+  }
+  const a = document.createElement("a"); a.href = cv.toDataURL("image/png"); a.download = name; a.click();
   log("📷 사진을 저장했어요");
 };
 
@@ -1271,12 +1296,6 @@ let selected = null;
 function select(c){
   selected = c;
   CH.forEach(o => o.nmEl.classList.toggle("on", o === c));
-```
-
-## 파트 6/29
-
-[파트 6/29] 파일: 3d/app.js (6/8)
-```
   document.querySelectorAll("#who .chip").forEach(b => b.classList.toggle("on", b.dataset.id === c?.id));
   ring.visible = !!c; $("sel").hidden = !c && !placing;
   if (c){ $("sel").textContent = `${c.name} 선택됨 · 바닥을 누르면 그쪽으로 가요`; if (c.floor !== viewFloor && viewFloor !== 0) showFloor(c.floor); }
@@ -1520,6 +1539,12 @@ async function standup(){
     await speak(c, c.id === "usagi" ? `우라! (${did} 했다는 듯 손가락을 폄)` : c.id === "chiikawa" ? `…${did} 했어…! 오늘도 할 수 있어…!` : `${did} 했어! 오늘은 ${ROLES[c.id].role} 일 계속할게!`);
   }
   await speak(BY.rakko, "좋아. 오늘도 잘 부탁해.");
+```
+
+## 파트 7/29
+
+[파트 7/29] 파일: 3d/app.js (7/8)
+```
   emit("meeting");
   } finally { release(team); activity.end(tok); }
 }
@@ -1541,12 +1566,6 @@ function addObj(id, name, f, rect, actions, spot, o = {}){
   addObj("coffee", "커피머신", 1, [738, 40, 54, 50, 60], ["coffee"], P(1, 765, 115), {enabled:() => broken.coffee ? "커피머신이 고장 났어요. 알림의 '고치기'를 눌러 주세요" : POWER()});
   addObj("fridge1", "냉장고", 1, [885, 30, 62, 70, 110], ["snack"], P(1, 915, 125));
   addObj("counter1", "간식 카운터", 1, [800, 40, 70, 40, 40], ["snack", "drink", "practice"], P(1, 835, 100));
-```
-
-## 파트 7/29
-
-[파트 7/29] 파일: 3d/app.js (7/8)
-```
   addObj("table1", "탕비실 식탁", 1, [780, 262, 120, 26, 30], ["meal", "snack"], () => rand(S1.table));
   addObj("water", "정수기", 1, [676, 298, 22, 18, 50], ["water"], P(1, 690, 330));
   addObj("stall1", "화장실 1번 칸", 1, [182, 530, 62, 80, 70], ["toilet"], P(1, 212, 505));
@@ -1778,6 +1797,12 @@ $("status").addEventListener("click", e => {
   const t = e.target.closest(".trow"); if (t) return select(BY[t.dataset.id]);
   if (e.target.closest("#closeSel")) return select(null);
   const ob = e.target.closest(".obj");
+```
+
+## 파트 8/29
+
+[파트 8/29] 파일: 3d/app.js (8/8)
+```
   if (ob){ const it = registry.get(ob.dataset.obj); if (!it) return; if (ob.getAttribute("aria-disabled") === "true") return log(whyNot(selected, it, ob.dataset.a) || "지금은 할 수 없어요", true); return useObject(selected, it, ob.dataset.a); }
   const b = e.target.closest(".act"); if (!b || !selected || b.disabled) return;
   const c = selected, k = b.dataset.a;
@@ -1787,9 +1812,9 @@ $("status").addEventListener("click", e => {
   log(`${c.name}: ${ACTIONS[k].name}`); emit("cmd", c);
   runSeq(c, [() => doAction(c, k)]);
 });
-$("quests").addEventListener("click", e => {
+$("quests").addEventListener("click", async e => {
   if (!e.target.closest("#resetSave")) return;
-  if (!confirm("레벨, 경험치, 코인, 가구, 과업, 관계를 모두 처음으로 되돌릴까요?")) return;
+  if (!await ask("레벨, 경험치, 코인, 가구, 과업, 관계를 모두 처음으로 되돌릴까요?")) return;
   resetting = true;
   writeJSON(SAVE_KEY, null); try { localStorage.removeItem(SAVE_KEY); } catch (err) {}
   location.reload();
@@ -1802,12 +1827,6 @@ function setControls(on){
   $("ctrlBtn").setAttribute("aria-pressed", String(on)); $("ctrlBtn").textContent = on ? "3D 조작 켬" : "3D 조작 끔";
 }
 $("ctrlBtn").onclick = () => setControls(!controls.enabled);
-```
-
-## 파트 8/29
-
-[파트 8/29] 파일: 3d/app.js (8/8)
-```
 setControls(true);   // 처음엔 켜 둬요 (휴대폰에서 페이지를 스크롤하고 싶을 때만 끄기)
 // 확대·축소 버튼: 두 손가락이나 휠이 어려울 때도 쓸 수 있게
 function zoom(k){
@@ -1874,9 +1893,9 @@ function tick(){
   console.info(`[치이카와 오피스] 정적 물체 ${b}개 → ${a}개로 합침 · 화질 ${Q.name}`);
 }
 $("qualityBtn").textContent = `화질: ${Q.name}`;
-$("qualityBtn").onclick = () => {
+$("qualityBtn").onclick = async () => {
   const next = {low:"mid", mid:"high", high:"low"}[QUALITY] || "mid";
-  if (!confirm(`화질을 '${({low:"가볍게", mid:"보통", high:"고화질"})[next]}'(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
+  if (!await ask(`화질을 '${({low:"가볍게", mid:"보통", high:"고화질"})[next]}'(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
   writeStr(KEYS.quality, next);
   save(); location.reload();
 };
@@ -1936,7 +1955,7 @@ export const Q = {
 /* ================= renderer, camera, lights ================= */
 export let renderer;
 try { renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: "high-performance" }); }
-catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`); throw e; }
+catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="https://onyoupado.github.io/Chiikawa-office/">2D 사무실로 가기</a></div>`); throw e; }
 renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
 renderer.shadowMap.enabled = Q.shadow;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3654,6 +3673,9 @@ select.pill{appearance:auto;padding:2px 8px}
 .objs{display:flex;flex-wrap:wrap;gap:6px}
 .objs .act small{display:block;font-size:.7rem;color:var(--muted)}
 .dev{position:absolute;right:10px;top:10px;z-index:6;background:rgba(0,0,0,.7);color:#9fe3c0;font-family:var(--font-mono);font-size:11px;padding:4px 8px;border-radius:8px;white-space:pre;pointer-events:none}
+.askwrap{position:fixed;inset:0;z-index:50;background:rgba(20,22,40,.45);display:grid;place-items:center;padding:16px}
+.ask{background:var(--panel);color:var(--ink);border:2px solid var(--ink);border-radius:16px;padding:16px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px}
+.ask p{margin:0;line-height:1.6}.ask .row{justify-content:flex-end}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .privacy{font-size:.82rem;color:var(--ink);background:var(--bg);border-radius:12px;padding:8px 12px;margin-top:8px}
 .privacy ul{margin:4px 0;padding-left:18px}
@@ -3714,6 +3736,12 @@ select.pill{appearance:auto;padding:2px 8px}
     <div class="tip" id="tip" hidden></div>
     <div class="omenu" id="omenu" role="dialog" aria-label="사물 행동 고르기" hidden></div>
     <div class="dev" id="devStats" hidden></div>
+```
+
+## 파트 25/29
+
+[파트 25/29] 파일: 3d.html (2/2)
+```
     <div class="help">한 손가락: 회전 · 두 손가락: 확대/이동 · 캐릭터를 고르고 사물이나 바닥 누르기</div>
   </div>
 
@@ -3723,12 +3751,6 @@ select.pill{appearance:auto;padding:2px 8px}
       <button class="btn" type="submit">명령</button>
     </form>
     <div class="chips" id="who"></div>
-```
-
-## 파트 25/29
-
-[파트 25/29] 파일: 3d.html (2/2)
-```
     <div class="chips" id="ex"></div>
     <p class="note">행동: <b>커피·간식·밥·물·화장실·씻어·샤워·낮잠·자·소파·TV·책·일해·회의해·운동·춤·그림·게임·피아노·보드게임·영화·바비큐·일광욕·수다</b>와 캐릭터 전용 행동(<b>공부·노래·우라·검술·애교·한 잔·연습·정리</b>). 이동: <b>가/와/모여</b> + 장소(회의실·탕비실·화장실·휴게실·자료실·기숙사·침대·샤워실·거실·취미방·영화관·테라스·1층·2층·3층). 쉼표나 "그리고"로 이어 써요. 명령은 페이지 안에서 해석해서 토큰을 쓰지 않아요.</p>
     <div class="log" id="log" aria-live="polite"></div>
@@ -3786,6 +3808,10 @@ select.pill{appearance:auto;padding:2px 8px}
     </div>
     <div class="row" style="margin-top:8px"><button class="btn ghost" type="button" id="clearChats">대화 기록 지우기</button><button class="btn ghost" type="button" id="clearAll">로컬 기록 모두 삭제</button></div>
   </details>
+
+  <div class="askwrap" id="askBox" role="alertdialog" aria-modal="true" aria-labelledby="askMsg" hidden>
+    <div class="ask"><p id="askMsg"></p><div class="row"><button class="btn ghost" type="button" id="askNo">아니요</button><button class="btn" type="button" id="askOk">네</button></div></div>
+  </div>
 
   <footer>팬이 만든 비영리·비공식 프로젝트예요. 치이카와 캐릭터의 권리는 원작자 나가노에게 있어요. 캐릭터 성격과 행동은 팬의 해석이에요.</footer>
 </div>

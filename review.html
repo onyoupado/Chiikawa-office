@@ -30,7 +30,7 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:.72rem;max-height:320px;
 확실하지 않은 내용은 &quot;추측&quot;이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1809줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
+- 3d/app.js (1828줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
 - 3d/core.js (188줄): 3D 렌더러·카메라·화질 설정과 물체 도우미 (합치기, InstancedMesh, dispose)
 - 3d/commands.js (46줄): 글 명령 해석 (순수 함수)
 - 3d/interactions.js (31줄): 사물 상호작용 등록 구조 (순수 함수)
@@ -44,11 +44,11 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:.72rem;max-height:320px;
 - shared/activity-controller.js (19줄): 긴 활동 공통 잠금
 - shared/actions.js (29줄): 2D·3D 공통 행동 문구
 - 2d/app.js (873줄): 2D 버전 로직 (업무 파이프라인, 사물 상호작용)
-- 3d.html (264줄): 3D 화면 구조와 CSS
+- 3d.html (271줄): 3D 화면 구조와 CSS
 - index.html (107줄): 2D 화면 구조
 - 2d/styles.css (278줄): 2D 스타일
 - server/proxy.mjs (84줄): 선택 서버 프록시 예시</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 1/29 · 3d/app.js</h2><button type="button" data-i="1">복사</button></div><details><summary>내용 보기 (18,032자)</summary><pre id="t1">[파트 1/29] 파일: 3d/app.js (1/8)
+<section class="part"><div class="ph"><h2>파트 1/29 · 3d/app.js</h2><button type="button" data-i="1">복사</button></div><details><summary>내용 보기 (17,924자)</summary><pre id="t1">[파트 1/29] 파일: 3d/app.js (1/8)
 ```
 // 치이카와 오피스 3D: 3층 건물, 엘리베이터·에스컬레이터, 욕구·감정·관계·하루 흐름, 과업·레벨·코인·상점, 이벤트, 대화, 업무 지시
 import { THREE, CSS2DObject, $, rand, sleep, clamp, lerp, josa, view, MOBILE, REDUCED, DEV, FONT, QUALITY, Q,
@@ -68,6 +68,17 @@ import { ACT_WORDS, findAct, parseCommand } from &quot;./commands.js&quot;;
 import { questMatches, advanceQuest, markQuestDone } from &quot;./quests.js&quot;;
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
+// 확인 상자: 브라우저 confirm() 대신 페이지 안 상자를 써요 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
+function ask(msg, okText = &quot;네&quot;){
+  return new Promise(res =&gt; {
+    const d = $(&quot;askBox&quot;); $(&quot;askMsg&quot;).textContent = msg; $(&quot;askOk&quot;).textContent = okText; d.hidden = false;
+    const back = document.activeElement;
+    const done = v =&gt; { d.hidden = true; $(&quot;askOk&quot;).onclick = $(&quot;askNo&quot;).onclick = null; d.onkeydown = null; back?.focus?.(); res(v); };
+    $(&quot;askOk&quot;).onclick = () =&gt; done(true); $(&quot;askNo&quot;).onclick = () =&gt; done(false);
+    d.onkeydown = e =&gt; { if (e.key === &quot;Escape&quot;){ e.stopPropagation(); done(false); } };
+    $(&quot;askNo&quot;).focus();
+  });
+}
 const registry = createRegistry();            // 상호작용하는 사물들
 const unregisterObj = id =&gt; registry.unregister(id);
 let decorSeq = 0, eventAction = null;
@@ -287,15 +298,15 @@ const ESC = [
   {id:&quot;23d&quot;, lane:1100, f0:3, y0:590, f1:2, y1:340, before:[{x:1155,y:600}], after:[{x:1155,y:335}]},
 ];
 const stepCanvas = document.createElement(&quot;canvas&quot;); stepCanvas.width = 32; stepCanvas.height = 32;
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 2/29 · 3d/app.js</h2><button type="button" data-i="2">복사</button></div><details><summary>내용 보기 (18,011자)</summary><pre id="t2">[파트 2/29] 파일: 3d/app.js (2/8)
+```
 { const g = stepCanvas.getContext(&quot;2d&quot;); g.fillStyle = &quot;#8a93a8&quot;; g.fillRect(0, 0, 32, 32); g.fillStyle = &quot;#5d6578&quot;; g.fillRect(0, 0, 32, 5); g.fillStyle = &quot;#ffd36b&quot;; g.fillRect(0, 0, 2, 32); g.fillRect(30, 0, 2, 32); }
 for (const e of ESC){
   const up = e.f1 &gt; e.f0, low = up ? [e.y0, e.f0] : [e.y1, e.f1], high = up ? [e.y1, e.f1] : [e.y0, e.f0];
   const dy = high[0] - low[0], L = Math.hypot(dy, FH), a = Math.atan2(FH, dy);
   const g = new THREE.Group(); g.position.copy(W(e.lane, (low[0] + high[0]) / 2, 1)); g.position.y = (fy(low[1]) + fy(high[1])) / 2; g.rotation.x = -a;
   const body = new THREE.Mesh(new THREE.BoxGeometry(40, 10, L), mat(&quot;#c9d0dc&quot;)); body.position.y = -2; body.castShadow = body.receiveShadow = true; g.add(body);
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 2/29 · 3d/app.js</h2><button type="button" data-i="2">복사</button></div><details><summary>내용 보기 (18,001자)</summary><pre id="t2">[파트 2/29] 파일: 3d/app.js (2/8)
-```
   const tex = new THREE.CanvasTexture(stepCanvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, L / 14); tex.colorSpace = THREE.SRGBColorSpace;
   const steps = new THREE.Mesh(new THREE.PlaneGeometry(34, L), new THREE.MeshStandardMaterial({ map: tex })); steps.rotation.x = -Math.PI / 2; steps.position.y = 3.2; g.add(steps);
   for (const sx of [-19, 19]){
@@ -519,6 +530,9 @@ async function escalate(c, e){
 // 이동 명령 토큰: 새 명령(runSeq·stop)이 오면 c.seq가 바뀌고, 예전 비동기 이동은 await 뒤에 바로 멈춰요
 const moveTag = c =&gt; c.seq || 0;
 const cancelled = (c, tag) =&gt; moveTag(c) !== tag;
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 3/29 · 3d/app.js</h2><button type="button" data-i="3">복사</button></div><details><summary>내용 보기 (17,923자)</summary><pre id="t3">[파트 3/29] 파일: 3d/app.js (3/8)
+```
 function elevWant(f, c, on){ const e = ELEV[f]; on ? e.users.add(c.id) : e.users.delete(c.id); e.want = e.users.size ? 1 : 0; }
 async function elevator(c, to, tag = moveTag(c)){
   const from = c.floor;
@@ -529,9 +543,6 @@ async function elevator(c, to, tag = moveTag(c)){
     elevWant(from, c, true); await sleep(500); if (cancelled(c, tag)) return bail();
     if (!await walk(c, ELEV_IN) || cancelled(c, tag)) return bail();
     c.hidden = true; elevWant(from, c, false); await sleep(400); if (cancelled(c, tag)) return bail();
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 3/29 · 3d/app.js</h2><button type="button" data-i="3">복사</button></div><details><summary>내용 보기 (18,012자)</summary><pre id="t3">[파트 3/29] 파일: 3d/app.js (3/8)
-```
     for (let f = from; f !== to; f += to &gt; from ? 1 : -1){ await sleep(800); if (cancelled(c, tag)) return bail(); for (const k of [1, 2, 3]) ELEV[k].ind.redraw(`${f + (to &gt; from ? 1 : -1)}F`); }
     if (c.ride || c.path.length) return bail();
     c.floor = to; c.x = ELEV_IN.x; c.y = ELEV_IN.y; elevWant(to, c, true); await sleep(400); if (cancelled(c, tag)) return bail();
@@ -620,8 +631,8 @@ function camTick(dt){
   }
 }
 $(&quot;shadowBtn&quot;).textContent = renderer.shadowMap.enabled ? &quot;그림자 켬&quot; : &quot;그림자 끔&quot;;
-$(&quot;shadowBtn&quot;).onclick = () =&gt; {
-  if (!renderer.shadowMap.enabled &amp;&amp; MOBILE &amp;&amp; !confirm(&quot;그림자를 켜면 휴대폰이 느려지거나 뜨거워질 수 있어요. 켤까요?&quot;)) return;
+$(&quot;shadowBtn&quot;).onclick = async () =&gt; {
+  if (!renderer.shadowMap.enabled &amp;&amp; MOBILE &amp;&amp; !await ask(&quot;그림자를 켜면 휴대폰이 느려지거나 뜨거워질 수 있어요. 켤까요?&quot;)) return;
   renderer.shadowMap.enabled = !renderer.shadowMap.enabled; scene.traverse(o =&gt; { if (o.material) o.material.needsUpdate = true; }); $(&quot;shadowBtn&quot;).textContent = renderer.shadowMap.enabled ? &quot;그림자 켬&quot; : &quot;그림자 끔&quot;; };
 
 /* ================= time of day ================= */
@@ -750,6 +761,9 @@ function applyTime(){
 }
 
 /* ================= needs, actions ================= */
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 4/29 · 3d/app.js</h2><button type="button" data-i="4">복사</button></div><details><summary>내용 보기 (17,964자)</summary><pre id="t4">[파트 4/29] 파일: 3d/app.js (4/8)
+```
 const allowed = (c, k) =&gt; ACTIONS[k] &amp;&amp; !ACTIONS[k].hidden &amp;&amp; (!ACTIONS[k].only || ACTIONS[k].only === c.id) &amp;&amp; (!ACTIONS[k].need || ACTIONS[k].need());
 const xpNeed = lv =&gt; 60 + lv * 40;
 const skLv = xp =&gt; Math.min(10, Math.floor(Math.sqrt(xp / 15)) + 1);
@@ -761,9 +775,6 @@ for (const c of CH){
 }
 const mood = c =&gt; { const v = NEEDS.map(n =&gt; c.needs[n.k]), mn = Math.min(...v), avg = v.reduce((a, b) =&gt; a + b, 0) / v.length; return clamp(avg * .7 + mn * .3, 0, 100); };
 function emotion(c){
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 4/29 · 3d/app.js</h2><button type="button" data-i="4">복사</button></div><details><summary>내용 보기 (18,028자)</summary><pre id="t4">[파트 4/29] 파일: 3d/app.js (4/8)
-```
   if (c.act?.kind === &quot;sleep&quot;) return {emo:&quot;😴&quot;, name:&quot;쿨쿨&quot;};
   const low = NEEDS.filter(n =&gt; c.needs[n.k] &lt; 22).sort((a, b) =&gt; c.needs[a.k] - c.needs[b.k])[0];
   if (low) return {emo:{hunger:&quot;😣&quot;, energy:&quot;😪&quot;, fun:&quot;😑&quot;, social:&quot;🥺&quot;, hygiene:&quot;😫&quot;, bladder:&quot;😖&quot;}[low.k], name:low.low, need:low};
@@ -1002,6 +1013,9 @@ $(&quot;shop&quot;).addEventListener(&quot;click&quot;, e =&gt; {
     $(&quot;sel&quot;).textContent = `${DECOR[id].emo} ${DECOR[id].name}: 놓을 바닥을 눌러 주세요 (${f}층) · 아직 코인은 빠지지 않았어요`;
     if (decorOn(f) &gt;= DECOR_WARN) log(`${f}층 가구가 ${decorOn(f)}개예요. 많아지면 휴대폰이 느려질 수 있어요`, true);
     if (viewFloor === 0) showFloor(1); view.scrollIntoView({behavior: REDUCED ? &quot;auto&quot; : &quot;smooth&quot;, block:&quot;center&quot;}); }
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 5/29 · 3d/app.js</h2><button type="button" data-i="5">복사</button></div><details><summary>내용 보기 (18,037자)</summary><pre id="t5">[파트 5/29] 파일: 3d/app.js (5/8)
+```
   if ((kind === &quot;up&quot; || kind === &quot;hat&quot;) &amp;&amp; S.coins &lt; (kind === &quot;up&quot; ? UPGRADES : HATS)[id].price) return log(&quot;코인이 모자라요&quot;, true);
   if (kind === &quot;up&quot;){ S.coins -= UPGRADES[id].price; S.up[id] = true; addCoins(0); log(`🛠️ ${UPGRADES[id].name} 설치! ${UPGRADES[id].desc}`); }
   if (kind === &quot;hat&quot; &amp;&amp; selected){ S.coins -= HATS[id].price; selected.hat = id; buildHat(selected); addCoins(0); say(selected, rand([&quot;어때? 어울려?&quot;,&quot;와아…!&quot;,&quot;헤헤&quot;]), 2000); log(`${HATS[id].emo} ${selected.name}에게 ${josa(HATS[id].name, &quot;을를&quot;)} 씌웠어요`); }
@@ -1015,9 +1029,6 @@ function toast(text, btn, fn){
   const t = $(&quot;toast&quot;); t.hidden = false; t.replaceChildren();
   const sp = document.createElement(&quot;span&quot;); sp.textContent = text; t.append(sp);
   eventAction = null;
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 5/29 · 3d/app.js</h2><button type="button" data-i="5">복사</button></div><details><summary>내용 보기 (17,990자)</summary><pre id="t5">[파트 5/29] 파일: 3d/app.js (5/8)
-```
   if (btn){ const b = document.createElement(&quot;button&quot;); b.type = &quot;button&quot;; b.textContent = btn; let used = false;
     const once = () =&gt; { if (used) return; used = true; b.disabled = true; fn(); };
     b.onclick = once; t.append(b); eventAction = {label:btn, fn:once}; }
@@ -1107,12 +1118,12 @@ function connUI(){
 }
 $(&quot;codeSet&quot;).onclick = () =&gt; { setAccessCode($(&quot;accessCode&quot;).value); $(&quot;accessCode&quot;).value = &quot;&quot;; connUI(); log(isConnected() ? &quot;🔒 서버 프록시에 연결했어요 (접속 코드는 저장하지 않아요)&quot; : &quot;접속 코드를 넣어 주세요&quot;, !isConnected()); };
 $(&quot;codeClear&quot;).onclick = () =&gt; { setAccessCode(&quot;&quot;); connUI(); };
-$(&quot;clearChats&quot;).onclick = () =&gt; {
-  if (!confirm(&quot;모든 캐릭터와의 대화 기록을 지울까요?&quot;)) return;
+$(&quot;clearChats&quot;).onclick = async () =&gt; {
+  if (!await ask(&quot;모든 캐릭터와의 대화 기록을 지울까요?&quot;)) return;
   CH.forEach(c =&gt; { c.chatLog = []; }); renderChat(); save(); log(&quot;💬 대화 기록을 지웠어요&quot;);
 };
-$(&quot;clearAll&quot;).onclick = () =&gt; {
-  if (!confirm(&quot;이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황, 대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.&quot;)) return;
+$(&quot;clearAll&quot;).onclick = async () =&gt; {
+  if (!await ask(&quot;이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황, 대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.&quot;)) return;
   resetting = true; clearAllLocal(); location.reload();
 };
 initAI().then(connUI);
@@ -1253,13 +1264,24 @@ $(&quot;taskGo&quot;).onclick = async () =&gt; {
 };
 
 /* ================= photo ================= */
-$(&quot;photoBtn&quot;).onclick = () =&gt; {
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 6/29 · 3d/app.js</h2><button type="button" data-i="6">복사</button></div><details><summary>내용 보기 (18,025자)</summary><pre id="t6">[파트 6/29] 파일: 3d/app.js (6/8)
+```
+$(&quot;photoBtn&quot;).onclick = async () =&gt; {
   renderer.render(scene, camera);
   const src = renderer.domElement, cv = document.createElement(&quot;canvas&quot;); cv.width = src.width; cv.height = src.height;
   const g = cv.getContext(&quot;2d&quot;); g.drawImage(src, 0, 0);
   const s = cv.width / 900; g.fillStyle = &quot;rgba(255,255,255,.85)&quot;; g.fillRect(12 * s, cv.height - 52 * s, 330 * s, 40 * s);
   g.fillStyle = &quot;#2d3149&quot;; g.font = `bold ${20 * s}px ${FONT.ui}`; g.fillText(`치이카와 오피스 · ${$(&quot;clock&quot;).textContent}`, 22 * s, cv.height - 25 * s);
-  const a = document.createElement(&quot;a&quot;); a.href = cv.toDataURL(&quot;image/png&quot;); a.download = `chiikawa-office-${Date.now()}.png`; a.click();
+  const name = `chiikawa-office-${Date.now()}.png`;
+  // claude.ai 아티팩트 안에서는 downloads 기능으로 저장을 물어보고, 그 밖에서는 바로 내려받아요
+  let dl = null; try { dl = window.claude?.use ? await window.claude.use(&quot;downloads&quot;) : null; } catch (e) {}
+  if (dl){
+    const blob = await new Promise(r =&gt; cv.toBlob(r, &quot;image/png&quot;));
+    try { await dl.save({filename:name, data:blob}); log(&quot;📷 사진을 저장했어요&quot;); } catch (e) { log(e?.code === &quot;declined&quot; ? &quot;사진 저장을 취소했어요&quot; : &quot;사진을 저장하지 못했어요&quot;, e?.code !== &quot;declined&quot;); }
+    return;
+  }
+  const a = document.createElement(&quot;a&quot;); a.href = cv.toDataURL(&quot;image/png&quot;); a.download = name; a.click();
   log(&quot;📷 사진을 저장했어요&quot;);
 };
 
@@ -1268,9 +1290,6 @@ let selected = null;
 function select(c){
   selected = c;
   CH.forEach(o =&gt; o.nmEl.classList.toggle(&quot;on&quot;, o === c));
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 6/29 · 3d/app.js</h2><button type="button" data-i="6">복사</button></div><details><summary>내용 보기 (18,010자)</summary><pre id="t6">[파트 6/29] 파일: 3d/app.js (6/8)
-```
   document.querySelectorAll(&quot;#who .chip&quot;).forEach(b =&gt; b.classList.toggle(&quot;on&quot;, b.dataset.id === c?.id));
   ring.visible = !!c; $(&quot;sel&quot;).hidden = !c &amp;&amp; !placing;
   if (c){ $(&quot;sel&quot;).textContent = `${c.name} 선택됨 · 바닥을 누르면 그쪽으로 가요`; if (c.floor !== viewFloor &amp;&amp; viewFloor !== 0) showFloor(c.floor); }
@@ -1514,6 +1533,9 @@ async function standup(){
     await speak(c, c.id === &quot;usagi&quot; ? `우라! (${did} 했다는 듯 손가락을 폄)` : c.id === &quot;chiikawa&quot; ? `…${did} 했어…! 오늘도 할 수 있어…!` : `${did} 했어! 오늘은 ${ROLES[c.id].role} 일 계속할게!`);
   }
   await speak(BY.rakko, &quot;좋아. 오늘도 잘 부탁해.&quot;);
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 7/29 · 3d/app.js</h2><button type="button" data-i="7">복사</button></div><details><summary>내용 보기 (17,919자)</summary><pre id="t7">[파트 7/29] 파일: 3d/app.js (7/8)
+```
   emit(&quot;meeting&quot;);
   } finally { release(team); activity.end(tok); }
 }
@@ -1535,9 +1557,6 @@ function addObj(id, name, f, rect, actions, spot, o = {}){
   addObj(&quot;coffee&quot;, &quot;커피머신&quot;, 1, [738, 40, 54, 50, 60], [&quot;coffee&quot;], P(1, 765, 115), {enabled:() =&gt; broken.coffee ? &quot;커피머신이 고장 났어요. 알림의 &#x27;고치기&#x27;를 눌러 주세요&quot; : POWER()});
   addObj(&quot;fridge1&quot;, &quot;냉장고&quot;, 1, [885, 30, 62, 70, 110], [&quot;snack&quot;], P(1, 915, 125));
   addObj(&quot;counter1&quot;, &quot;간식 카운터&quot;, 1, [800, 40, 70, 40, 40], [&quot;snack&quot;, &quot;drink&quot;, &quot;practice&quot;], P(1, 835, 100));
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 7/29 · 3d/app.js</h2><button type="button" data-i="7">복사</button></div><details><summary>내용 보기 (18,013자)</summary><pre id="t7">[파트 7/29] 파일: 3d/app.js (7/8)
-```
   addObj(&quot;table1&quot;, &quot;탕비실 식탁&quot;, 1, [780, 262, 120, 26, 30], [&quot;meal&quot;, &quot;snack&quot;], () =&gt; rand(S1.table));
   addObj(&quot;water&quot;, &quot;정수기&quot;, 1, [676, 298, 22, 18, 50], [&quot;water&quot;], P(1, 690, 330));
   addObj(&quot;stall1&quot;, &quot;화장실 1번 칸&quot;, 1, [182, 530, 62, 80, 70], [&quot;toilet&quot;], P(1, 212, 505));
@@ -1769,6 +1788,9 @@ $(&quot;status&quot;).addEventListener(&quot;click&quot;, e =&gt; {
   const t = e.target.closest(&quot;.trow&quot;); if (t) return select(BY[t.dataset.id]);
   if (e.target.closest(&quot;#closeSel&quot;)) return select(null);
   const ob = e.target.closest(&quot;.obj&quot;);
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 8/29 · 3d/app.js</h2><button type="button" data-i="8">복사</button></div><details><summary>내용 보기 (7,613자)</summary><pre id="t8">[파트 8/29] 파일: 3d/app.js (8/8)
+```
   if (ob){ const it = registry.get(ob.dataset.obj); if (!it) return; if (ob.getAttribute(&quot;aria-disabled&quot;) === &quot;true&quot;) return log(whyNot(selected, it, ob.dataset.a) || &quot;지금은 할 수 없어요&quot;, true); return useObject(selected, it, ob.dataset.a); }
   const b = e.target.closest(&quot;.act&quot;); if (!b || !selected || b.disabled) return;
   const c = selected, k = b.dataset.a;
@@ -1778,9 +1800,9 @@ $(&quot;status&quot;).addEventListener(&quot;click&quot;, e =&gt; {
   log(`${c.name}: ${ACTIONS[k].name}`); emit(&quot;cmd&quot;, c);
   runSeq(c, [() =&gt; doAction(c, k)]);
 });
-$(&quot;quests&quot;).addEventListener(&quot;click&quot;, e =&gt; {
+$(&quot;quests&quot;).addEventListener(&quot;click&quot;, async e =&gt; {
   if (!e.target.closest(&quot;#resetSave&quot;)) return;
-  if (!confirm(&quot;레벨, 경험치, 코인, 가구, 과업, 관계를 모두 처음으로 되돌릴까요?&quot;)) return;
+  if (!await ask(&quot;레벨, 경험치, 코인, 가구, 과업, 관계를 모두 처음으로 되돌릴까요?&quot;)) return;
   resetting = true;
   writeJSON(SAVE_KEY, null); try { localStorage.removeItem(SAVE_KEY); } catch (err) {}
   location.reload();
@@ -1793,9 +1815,6 @@ function setControls(on){
   $(&quot;ctrlBtn&quot;).setAttribute(&quot;aria-pressed&quot;, String(on)); $(&quot;ctrlBtn&quot;).textContent = on ? &quot;3D 조작 켬&quot; : &quot;3D 조작 끔&quot;;
 }
 $(&quot;ctrlBtn&quot;).onclick = () =&gt; setControls(!controls.enabled);
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 8/29 · 3d/app.js</h2><button type="button" data-i="8">복사</button></div><details><summary>내용 보기 (6,183자)</summary><pre id="t8">[파트 8/29] 파일: 3d/app.js (8/8)
-```
 setControls(true);   // 처음엔 켜 둬요 (휴대폰에서 페이지를 스크롤하고 싶을 때만 끄기)
 // 확대·축소 버튼: 두 손가락이나 휠이 어려울 때도 쓸 수 있게
 function zoom(k){
@@ -1862,9 +1881,9 @@ function tick(){
   console.info(`[치이카와 오피스] 정적 물체 ${b}개 → ${a}개로 합침 · 화질 ${Q.name}`);
 }
 $(&quot;qualityBtn&quot;).textContent = `화질: ${Q.name}`;
-$(&quot;qualityBtn&quot;).onclick = () =&gt; {
+$(&quot;qualityBtn&quot;).onclick = async () =&gt; {
   const next = {low:&quot;mid&quot;, mid:&quot;high&quot;, high:&quot;low&quot;}[QUALITY] || &quot;mid&quot;;
-  if (!confirm(`화질을 &#x27;${({low:&quot;가볍게&quot;, mid:&quot;보통&quot;, high:&quot;고화질&quot;})[next]}&#x27;(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
+  if (!await ask(`화질을 &#x27;${({low:&quot;가볍게&quot;, mid:&quot;보통&quot;, high:&quot;고화질&quot;})[next]}&#x27;(으)로 바꿀까요? 화면을 다시 불러와요 (진행 상황은 저장돼요).`)) return;
   writeStr(KEYS.quality, next);
   save(); location.reload();
 };
@@ -1881,7 +1900,7 @@ if (DEV){   // ?dev=1 로 열면 그리기 요청·메모리 숫자를 보여 �
 log(&quot;출근 완료! 캐릭터를 누르거나 명령을 써 보세요.&quot;);
 setTimeout(() =&gt; say(BY.hachiware, &quot;오늘도 힘내자~!&quot;, 2600), 800);
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 9/29 · 3d/core.js</h2><button type="button" data-i="9">복사</button></div><details><summary>내용 보기 (11,474자)</summary><pre id="t9">[파트 9/29] 파일: 3d/core.js (1/1)
+<section class="part"><div class="ph"><h2>파트 9/29 · 3d/core.js</h2><button type="button" data-i="9">복사</button></div><details><summary>내용 보기 (11,516자)</summary><pre id="t9">[파트 9/29] 파일: 3d/core.js (1/1)
 ```
 // 3D 공통 바탕: 렌더러·장면·카메라·화질 설정과 물체를 만드는 도우미들
 import * as THREE from &quot;three&quot;;
@@ -1921,7 +1940,7 @@ export const Q = {
 /* ================= renderer, camera, lights ================= */
 export let renderer;
 try { renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: &quot;high-performance&quot; }); }
-catch (e) { view.insertAdjacentHTML(&quot;beforeend&quot;, `&lt;div class=&quot;err&quot;&gt;이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.&lt;br&gt;&lt;a href=&quot;./&quot;&gt;2D 사무실로 가기&lt;/a&gt;&lt;/div&gt;`); throw e; }
+catch (e) { view.insertAdjacentHTML(&quot;beforeend&quot;, `&lt;div class=&quot;err&quot;&gt;이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.&lt;br&gt;&lt;a href=&quot;https://onyoupado.github.io/Chiikawa-office/&quot;&gt;2D 사무실로 가기&lt;/a&gt;&lt;/div&gt;`); throw e; }
 renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
 renderer.shadowMap.enabled = Q.shadow;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3461,7 +3480,7 @@ setTimeout(() =&gt; say(M.hachiware, &quot;오늘도 힘내자~!&quot;, 2600), 6
 setTimeout(() =&gt; { if (!busy &amp;&amp; !M.usagi.job) wander(M.usagi); }, 1800);
 pump();
 ```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 24/29 · 3d.html</h2><button type="button" data-i="24">복사</button></div><details><summary>내용 보기 (18,033자)</summary><pre id="t24">[파트 24/29] 파일: 3d.html (1/2)
+<section class="part"><div class="ph"><h2>파트 24/29 · 3d.html</h2><button type="button" data-i="24">복사</button></div><details><summary>내용 보기 (18,023자)</summary><pre id="t24">[파트 24/29] 파일: 3d.html (1/2)
 ```
 &lt;!doctype html&gt;
 &lt;html lang=&quot;ko&quot;&gt;
@@ -3594,6 +3613,9 @@ select.pill{appearance:auto;padding:2px 8px}
 .objs{display:flex;flex-wrap:wrap;gap:6px}
 .objs .act small{display:block;font-size:.7rem;color:var(--muted)}
 .dev{position:absolute;right:10px;top:10px;z-index:6;background:rgba(0,0,0,.7);color:#9fe3c0;font-family:var(--font-mono);font-size:11px;padding:4px 8px;border-radius:8px;white-space:pre;pointer-events:none}
+.askwrap{position:fixed;inset:0;z-index:50;background:rgba(20,22,40,.45);display:grid;place-items:center;padding:16px}
+.ask{background:var(--panel);color:var(--ink);border:2px solid var(--ink);border-radius:16px;padding:16px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px}
+.ask p{margin:0;line-height:1.6}.ask .row{justify-content:flex-end}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .privacy{font-size:.82rem;color:var(--ink);background:var(--bg);border-radius:12px;padding:8px 12px;margin-top:8px}
 .privacy ul{margin:4px 0;padding-left:18px}
@@ -3654,6 +3676,9 @@ select.pill{appearance:auto;padding:2px 8px}
     &lt;div class=&quot;tip&quot; id=&quot;tip&quot; hidden&gt;&lt;/div&gt;
     &lt;div class=&quot;omenu&quot; id=&quot;omenu&quot; role=&quot;dialog&quot; aria-label=&quot;사물 행동 고르기&quot; hidden&gt;&lt;/div&gt;
     &lt;div class=&quot;dev&quot; id=&quot;devStats&quot; hidden&gt;&lt;/div&gt;
+```</pre></details></section>
+<section class="part"><div class="ph"><h2>파트 25/29 · 3d.html</h2><button type="button" data-i="25">복사</button></div><details><summary>내용 보기 (5,175자)</summary><pre id="t25">[파트 25/29] 파일: 3d.html (2/2)
+```
     &lt;div class=&quot;help&quot;&gt;한 손가락: 회전 · 두 손가락: 확대/이동 · 캐릭터를 고르고 사물이나 바닥 누르기&lt;/div&gt;
   &lt;/div&gt;
 
@@ -3663,9 +3688,6 @@ select.pill{appearance:auto;padding:2px 8px}
       &lt;button class=&quot;btn&quot; type=&quot;submit&quot;&gt;명령&lt;/button&gt;
     &lt;/form&gt;
     &lt;div class=&quot;chips&quot; id=&quot;who&quot;&gt;&lt;/div&gt;
-```</pre></details></section>
-<section class="part"><div class="ph"><h2>파트 25/29 · 3d.html</h2><button type="button" data-i="25">복사</button></div><details><summary>내용 보기 (4,497자)</summary><pre id="t25">[파트 25/29] 파일: 3d.html (2/2)
-```
     &lt;div class=&quot;chips&quot; id=&quot;ex&quot;&gt;&lt;/div&gt;
     &lt;p class=&quot;note&quot;&gt;행동: &lt;b&gt;커피·간식·밥·물·화장실·씻어·샤워·낮잠·자·소파·TV·책·일해·회의해·운동·춤·그림·게임·피아노·보드게임·영화·바비큐·일광욕·수다&lt;/b&gt;와 캐릭터 전용 행동(&lt;b&gt;공부·노래·우라·검술·애교·한 잔·연습·정리&lt;/b&gt;). 이동: &lt;b&gt;가/와/모여&lt;/b&gt; + 장소(회의실·탕비실·화장실·휴게실·자료실·기숙사·침대·샤워실·거실·취미방·영화관·테라스·1층·2층·3층). 쉼표나 &quot;그리고&quot;로 이어 써요. 명령은 페이지 안에서 해석해서 토큰을 쓰지 않아요.&lt;/p&gt;
     &lt;div class=&quot;log&quot; id=&quot;log&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
@@ -3723,6 +3745,10 @@ select.pill{appearance:auto;padding:2px 8px}
     &lt;/div&gt;
     &lt;div class=&quot;row&quot; style=&quot;margin-top:8px&quot;&gt;&lt;button class=&quot;btn ghost&quot; type=&quot;button&quot; id=&quot;clearChats&quot;&gt;대화 기록 지우기&lt;/button&gt;&lt;button class=&quot;btn ghost&quot; type=&quot;button&quot; id=&quot;clearAll&quot;&gt;로컬 기록 모두 삭제&lt;/button&gt;&lt;/div&gt;
   &lt;/details&gt;
+
+  &lt;div class=&quot;askwrap&quot; id=&quot;askBox&quot; role=&quot;alertdialog&quot; aria-modal=&quot;true&quot; aria-labelledby=&quot;askMsg&quot; hidden&gt;
+    &lt;div class=&quot;ask&quot;&gt;&lt;p id=&quot;askMsg&quot;&gt;&lt;/p&gt;&lt;div class=&quot;row&quot;&gt;&lt;button class=&quot;btn ghost&quot; type=&quot;button&quot; id=&quot;askNo&quot;&gt;아니요&lt;/button&gt;&lt;button class=&quot;btn&quot; type=&quot;button&quot; id=&quot;askOk&quot;&gt;네&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;
+  &lt;/div&gt;
 
   &lt;footer&gt;팬이 만든 비영리·비공식 프로젝트예요. 치이카와 캐릭터의 권리는 원작자 나가노에게 있어요. 캐릭터 성격과 행동은 팬의 해석이에요.&lt;/footer&gt;
 &lt;/div&gt;

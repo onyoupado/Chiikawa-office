@@ -36,7 +36,7 @@ export const Q = {
 /* ================= renderer, camera, lights ================= */
 export let renderer;
 try { renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: "high-performance" }); }
-catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="./">2D 사무실로 가기</a></div>`); throw e; }
+catch (e) { view.insertAdjacentHTML("beforeend", `<div class="err">이 브라우저에서는 3D 화면(WebGL)을 켤 수 없어요.<br><a href="https://onyoupado.github.io/Chiikawa-office/">2D 사무실로 가기</a></div>`); throw e; }
 renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
 renderer.shadowMap.enabled = Q.shadow;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
