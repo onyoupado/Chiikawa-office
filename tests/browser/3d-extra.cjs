@@ -49,7 +49,7 @@ const rep = reporter(), ok = rep.ok;
   await p.evaluate(() => { __office.endEvent(__office.eventActive); __office.startEvent('blackout'); });
   ok('event toast + button', await p.isVisible('#toast button'));
   await p.click('#toast button');
-  let fixed = false; for (let i = 0; i < 30 && !fixed; i++){ await p.waitForTimeout(1500); fixed = await p.evaluate(() => __office.eventActive === null); }   // 고치러 가는 친구가 다른 층이면 오래 걸려요
+  let fixed = false; for (let i = 0; i < 30 && !fixed; i++){ await p.waitForTimeout(1500); fixed = await p.evaluate(() => __office.eventActive === null); if (process.env.TRACE) console.log(await p.evaluate(() => { const r = __office.CH.find(c => c.id === 'rakko'); return `${Math.round(r.x)},${Math.round(r.y)} p${r.path.length} ${JSON.stringify(r.path.map(q => [Math.round(q.x), Math.round(q.y)]))} cur=${r.cur} m=${r.manual === Infinity}`; })); }   // 고치러 가는 친구가 다른 층이면 오래 걸려요
   ok('blackout fixed via button', fixed, fixed ? '' : await p.evaluate(() => __office.CH.map(c => `${c.id}@${c.floor}:${Math.round(c.x)},${Math.round(c.y)} p${c.path.length} r${!!c.ride} h${!!c.hidden} m${c.manual === Infinity ? 'inf' : ''} act=${c.act?.kind} cur=${c.cur}`).join(' ; ')));
   // 회의 열기 (데모 대본) → 끝까지
   await p.fill('#meetIn', '이벤트 더 재밌게'); await p.press('#meetIn', 'Enter'); await p.waitForTimeout(500);
@@ -57,6 +57,29 @@ const rep = reporter(), ok = rep.ok;
   const t0 = Date.now(); while (Date.now() - t0 < 150000 && await p.evaluate(() => __office.activity.busy)) await p.waitForTimeout(2000);
   ok('meeting finishes + unlocks', !(await p.evaluate(() => __office.activity.busy)) && (await p.textContent('#minutes')).includes('결정'), `${Math.round((Date.now() - t0) / 1000)}s`);
   ok('crew released after meeting', await p.evaluate(() => __office.CH.every(c => c.manual !== Infinity)));
+  // 다른 층 캐릭터는 보이지 않아야 해요 (visible이 정확히 false)
+  await p.evaluate(() => { const o = __office; for (const [id, f] of [['usagi', 2], ['kani', 3]]){ const c = o.CH.find(c => c.id === id); o.stop(c); c.manual = Infinity; c.floor = f; c.x = 500; c.y = 320; } });
+  await p.click('#floors button[data-f="1"]'); await p.waitForTimeout(600);
+  const fv = await p.evaluate(() => __office.CH.filter(c => !c.ride).map(c => [c.id, c.floor, c.obj.visible]));
+  ok('other-floor characters hidden (1F view)', fv.every(([id, f, v]) => v === (f === 1)), JSON.stringify(fv.filter(([id, f, v]) => v !== (f === 1))));
+  await p.click('#floors button[data-f="0"]'); await p.waitForTimeout(400);
+  ok('whole-building view shows all', await p.evaluate(() => __office.CH.every(c => c.obj.visible === !c.hidden)));
+  await p.click('#floors button[data-f="1"]');
+  // 바깥 손님: 미팅 손님이 정문으로 들어와 회의 후 나가요
+  await p.evaluate(() => { const o = __office; o.endEvent(o.eventActive); o.startEvent('guest'); });
+  ok('guest visitor spawned outside', await p.evaluate(() => __office.visitors.length === 1 && __office.visitors[0].y > 640));
+  await p.waitForTimeout(500); await p.click('#toast button');
+  let gone = false; const tg = Date.now();
+  while (Date.now() - tg < 120000 && !gone){ await p.waitForTimeout(2000); gone = await p.evaluate(() => __office.eventActive === null && __office.visitors.length === 0); }
+  ok('guest meeting completes and visitor leaves', gone, `${Math.round((Date.now() - tg) / 1000)}s`);
+  // 터미널 실제 작업 동기화
+  // 직접 시킨 행동이 끝난 친구만 실제 작업에 합류해요 (시험에서는 기다림을 없애요)
+  await p.evaluate(() => { const c = __office.CH.find(c => c.id === 'shisa'); __office.stop(c); c.cur = null; c.manual = 0; __office.liveApply({state:'working', title:'시험 작업', request:'', steps:[{who:'shisa', title:'로직 고치기', status:'doing'}], updatedAt:Date.now()}); });
+  let lw = false; for (let i = 0; i < 25 && !lw; i++){ await p.waitForTimeout(1500); lw = await p.evaluate(() => !document.getElementById('livePill').hidden && __office.CH.find(c => c.id === 'shisa').cur === 'devwork'); }   // 다른 층이면 내려오는 데 시간이 걸려요
+  ok('live work: pill + character works', lw, lw ? '' : await p.evaluate(() => { const c = __office.CH.find(c => c.id === 'shisa'); return `f${c.floor} ${Math.round(c.x)},${Math.round(c.y)} p${c.path.length} cur=${c.cur} m=${c.manual} pill=${document.getElementById('livePill').hidden} w=${__office.LIVE.working.size}`; }));
+  await p.evaluate(() => __office.liveApply({state:'idle', title:'시험 작업', request:'', steps:[{who:'shisa', title:'로직 고치기', status:'done'}], updatedAt:Date.now()}));
+  await p.waitForTimeout(500);
+  ok('live idle: pill hidden, character released', await p.evaluate(() => document.getElementById('livePill').hidden && __office.CH.find(c => c.id === 'shisa').cur !== 'devwork'));
   ok('no errors', errs.length === 0, JSON.stringify(errs));
   await b.close();
   rep.done();

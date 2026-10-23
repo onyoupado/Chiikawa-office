@@ -5,6 +5,7 @@ import { parseTaskAnswer as parse, finalizeAnswer, buildTaskPrompt, demoAnswer, 
 import { initAI, setAccessCode, aiStatus, isConnected, askAI, ERRMSG, copyText } from "../shared/ai-client.js";
 import { ACTION_TEXT, objectActionLabel } from "../shared/actions.js";
 import { createRegistry } from "../3d/interactions.js";
+import { startLiveSync } from "../shared/live.js";
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
 const $ = id => document.getElementById(id);
@@ -119,6 +120,7 @@ function walls(fl, r, label){
 for (const fl of [1,2,3]){
   for (const [k,r] of Object.entries(FLOORS[fl].rooms)){ add(fl, `room r-${k}`, r.x,r.y,r.w,r.h); walls(fl, r, r.name); }
   add(fl, "corr-label", 360, 308, null, null, ["", "복 도", "기 숙 사 복 도", "3 층 · 취 미 층"][fl]);
+  if (fl === 1){ add(1, "entrance", 982, 290, 18, 60); add(1, "flab entlab", 912, 326, null, null, "정문 →"); }   // 1층 복도 오른쪽 끝이 정문
 }
 
 /* ---------- furniture helpers ---------- */
@@ -326,7 +328,7 @@ const SPEED = REDUCED ? 5000 : 170;
 let lastT = performance.now();
 function frame(t){
   const dt = Math.min(.05, (t - lastT) / 1000); lastT = t;
-  for (const c of ALL){
+  for (const c of [...ALL, ...VIS]){
     if (!c.path.length) continue;
     const g = c.path[0], dx = g.x - c.x, dy = g.y - c.y, d = Math.hypot(dx, dy), step = SPEED * dt;
     if (Math.abs(dx) > 1) c.el.classList.toggle("left", dx < 0);
@@ -529,13 +531,24 @@ $("pasteGo").onclick = () => {
     log("usagi", `붙여 넣은 답 정리 · ★${a.score}`);
   } catch (e) { log("rakko", `${ERRMSG[e?.code] || "정리하지 못했어요"}. @결과물 아래에 본문이 있는지 확인해 주세요.`); }
 };
-$("clearTasks").onclick = () => {
+// 확인 상자: 브라우저 confirm() 대신 페이지 안 상자 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
+function ask(msg, okText = "네"){
+  return new Promise(res => {
+    const d = $("askBox"); $("askMsg").textContent = msg; $("askOk").textContent = okText; d.hidden = false;
+    const back = document.activeElement;
+    const done = v => { d.hidden = true; $("askOk").onclick = $("askNo").onclick = null; d.onkeydown = null; back?.focus?.(); res(v); };
+    $("askOk").onclick = () => done(true); $("askNo").onclick = () => done(false);
+    d.onkeydown = e => { if (e.key === "Escape"){ e.stopPropagation(); done(false); } };
+    $("askNo").focus();
+  });
+}
+$("clearTasks").onclick = async () => {
   if (busy) return log("rakko", "업무 처리 중에는 지울 수 없어요");
-  if (!confirm("2D 사무실의 업무 기록을 모두 지울까요?")) return;
+  if (!await ask("2D 사무실의 업무 기록을 모두 지울까요?")) return;
   tasks = [EXAMPLE]; selected = EXAMPLE.id; remove(KEY); renderBoard(); renderResult(EXAMPLE); log("rakko", "업무 기록을 지웠어요");
 };
-$("clearAll").onclick = () => {
-  if (!confirm("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황·대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
+$("clearAll").onclick = async () => {
+  if (!await ask("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황·대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
   clearAllLocal(); location.reload();
 };
 
@@ -727,6 +740,97 @@ $("stop").onclick = () => {
   else if (!j.skipped){ j.skipped = true; j.failed = true; passJob(j); ALL.forEach(c => walk(c, c.home)); log("rakko", "남은 연출을 건너뛰었어요"); }
 };
 
+
+/* ---------- visitors: 정문으로 들어오는 바깥 손님 (택배·배달·외부 미팅) ---------- */
+// 1층 복도 오른쪽 끝 정문으로 들어와요. 업무를 처리하는 중이 아니면 한가한 친구가 마중 나가요.
+const VIS = [];
+const VSVG = {
+  courier:["택배 기사님", "#c9a07a", "#2b7de9", `<rect x="58" y="62" width="34" height="28" fill="#d9a86c" stroke="#33364a" stroke-width="2.5"/>`],
+  rider:["배달 라이더", "#ffb38a", "#ff6b4a", `<rect x="58" y="66" width="32" height="22" fill="#fff3f6" stroke="#33364a" stroke-width="2.5"/><rect x="58" y="72" width="32" height="5" fill="#ff6b4a"/>`],
+  guest:["외부 손님", "#bfe3d6", "#6f5cc4", `<rect x="62" y="66" width="28" height="22" fill="#3a3f55" stroke="#33364a" stroke-width="2.5"/>`],
+};
+const ENTRY = {x:995, y:320}, HALL = {x:925, y:320};
+function spawn2d(kind){
+  const [name, body, cap, item] = VSVG[kind];
+  const v = {id:"v" + Date.now(), kind, name, x:ENTRY.x, y:ENTRY.y, floor:1, path:[], resolve:null, bubT:0};
+  v.el = document.createElement("div"); v.el.className = "mate visitor";
+  v.el.innerHTML = `<div class="body"><svg viewBox="0 0 100 100"><ellipse cx="50" cy="70" rx="30" ry="26" fill="${body}" stroke="#33364a" stroke-width="2.5"/><ellipse cx="50" cy="42" rx="27" ry="24" fill="#fff" stroke="#33364a" stroke-width="2.5"/><path d="M24 34 Q50 6 76 34 Z" fill="${cap}" stroke="#33364a" stroke-width="2.5"/><circle cx="41" cy="44" r="3" fill="#33364a"/><circle cx="59" cy="44" r="3" fill="#33364a"/>${item}</svg></div><span class="nm"></span>`;
+  v.el.querySelector(".nm").textContent = name;
+  v.bub = document.createElement("div"); v.bub.className = "bub";
+  MAPS[1].append(v.el, v.bub); place(v); VIS.push(v); return v;
+}
+async function leave2d(v, line){
+  if (line) say(v, line, 2200);
+  await walk(v, ENTRY); v.el.classList.add("gone");
+  await sleep(500); v.el.remove(); v.bub.remove(); const k = VIS.indexOf(v); if (k >= 0) VIS.splice(k, 1);
+}
+// 마중 나갈 친구: 1층에서 일이 없는 친구 (업무 중인 팀은 빼요)
+const host2d = prefer => { const free = ALL.filter(c => !c.job && !c.away && c.floor === 1); return (prefer && free.find(c => c.id === prefer)) || free.sort((a, b) => Math.abs(a.x - HALL.x) - Math.abs(b.x - HALL.x))[0] || null; };
+async function visit2d(kind){
+  if (VIS.length || document.hidden) return;
+  const v = spawn2d(kind);
+  log("rakko", {courier:"📦 택배 기사님이 정문으로 들어왔어요", rider:"🛵 배달 음식이 도착했어요", guest:"🤝 외부 손님이 미팅하러 왔어요"}[kind]);
+  await walk(v, HALL); say(v, {courier:"택배 왔어요~!", rider:"배달 왔습니다~!", guest:"안녕하세요, 미팅하러 왔어요!"}[kind], 2600);
+  const busyNow = busy && kind === "guest";                                 // 업무 중엔 회의실이 차 있어서 손님 미팅은 다음에
+  const c = busyNow ? null : host2d(kind === "guest" ? "rakko" : kind === "rider" ? "kurimanju" : null);
+  if (!c){ await sleep(2500); return leave2d(v, kind === "guest" ? "바쁘신가 봐요. 다음에 올게요!" : "문 앞에 두고 갈게요~"); }
+  const ok = claim(c);
+  if (!await walk(c, {x:HALL.x - 40, y:HALL.y}) || !ok()){ return leave2d(v, "다음에 올게요~"); }
+  if (kind === "guest"){
+    say(c, "어서 오세요. 회의실로 안내할게요.", 2400); await sleep(1500);
+    await Promise.all([walk(c, SPOT.meet[0]), walk(v, SPOT.meet[1])]);
+    if (ok()){
+      for (const [w, t] of [[v, "같이 하고 싶은 일이 있어서 왔어요."], [c, "좋아요, 자세히 들어 볼게요."], [v, "다음 달 초면 좋겠어요."], [c, "정리해서 연락드릴게요."]]){ say(w, t, 2600); await sleep(2600); if (!ok()) break; }
+      log("rakko", "🤝 외부 손님과 미팅을 마쳤어요");
+    }
+    await Promise.all([leave2d(v, "감사합니다! 또 올게요~"), ok() ? walk(c, c.home) : null]);
+  } else {
+    say(c, kind === "rider" ? "캬~ 맛있겠다!" : "감사합니다!", 2000); await sleep(1600);
+    log(c.id, kind === "rider" ? "🍱 배달 음식을 받았어요" : "📦 택배를 받았어요");
+    leave2d(v, kind === "rider" ? "맛있게 드세요!" : "좋은 하루 되세요!");
+    if (ok()) await walk(c, kind === "rider" ? SPOT.snack[0] : c.home);
+    if (ok() && kind === "rider"){ say(c, "다들 와서 먹어~", 2200); await sleep(3000); await walk(c, c.home); }
+  }
+  if (ok()) c.job = null;
+}
+setInterval(() => { if (!busy && Math.random() < .5) visit2d(rand(["courier", "rider", "guest"])); }, 150000);
+setTimeout(() => visit2d("courier"), 45000);
+
+/* ---------- live: 터미널의 실제 작업과 동기화 ---------- */
+// Claude Code가 실제로 일하는 동안 맡은 캐릭터가 자리에서 그 일을 하고, 위쪽 띠에 지금 하는 일이 보여요.
+const LIVE2 = {status:null, working:new Map(), wasOn:false};
+function liveApply2d(st){
+  LIVE2.status = st;
+  const on = st?.state === "working", bar = $("livebar");
+  bar.hidden = !on;
+  if (on){
+    const done = st.steps.filter(s => s.status === "done").length;
+    bar.textContent = `🛠 터미널에서 실제 작업 중: ${st.title || "작업"}${st.steps.length ? ` (${done}/${st.steps.length})` : ""}` +
+      (st.steps.length ? " · " + st.steps.map(s => `${M[s.who].name} ${s.status === "done" ? "✓" : s.status === "doing" ? "…" : "·"} ${s.title}`).join(" / ") : "");
+  }
+  if (on !== LIVE2.wasOn){ log("rakko", on ? `🛠 터미널에서 실제 작업을 시작했어요: ${st.title}` : "✅ 터미널의 실제 작업이 끝났어요"); LIVE2.wasOn = on; }
+  const doing = new Map(on ? st.steps.filter(s => s.status === "doing").map(s => [s.who, s.title]) : []);
+  for (const [id, tag] of LIVE2.working) if (!doing.has(id)){
+    const c = M[id]; LIVE2.working.delete(id);
+    if (c.job === tag){ if (SPOT.desk[id]) setWork(c, false, "완료!"); say(c, rand(["끝!","다 했다~","야하!"]), 2000); c.job = null; }
+  }
+  if (busy) return;                                                       // 업무 지시를 처리하는 중이면 그게 먼저예요
+  for (const [id, title] of doing){
+    const c = M[id];
+    if (LIVE2.working.has(id)){ if (LIVE2.working.get(id) === c.job){ if (SPOT.desk[id]) screen(id, `[실제 작업]\n${title}`); continue; } LIVE2.working.delete(id); }   // 다른 일로 불려 갔으면 다시 자리로
+    if (c.away) continue;
+    const ok = claim(c); LIVE2.working.set(id, c.job);
+    (async () => {
+      if (c.floor !== 1 && !await ride(c, ok, 1)) return;
+      if (!await walk(c, SPOT.desk[id] || c.home) || !ok()) return;
+      say(c, title.length > 18 ? title.slice(0, 17) + "…" : title, 2600);
+      if (SPOT.desk[id]){ setWork(c, true, "실제 작업 중"); screen(id, `[실제 작업]\n${title}`); }
+    })();
+  }
+}
+startLiveSync(liveApply2d);
+setInterval(() => { if (LIVE2.status) liveApply2d(LIVE2.status); }, 10000);
+
 /* ---------- objects you can use (3D와 같은 이름·행동) ---------- */
 // 지도 위 가구에 투명한 버튼(.hot, data-interactive-id)을 얹어요. 마우스·Enter·Space 모두 같은 useObject()로 가요.
 const registry = createRegistry();
@@ -866,7 +970,7 @@ $("chips").addEventListener("click", e => { const c = e.target.closest(".chip");
 
 renderBoard();
 const sel = tasks.find(t => t.id === selected); if (sel) renderResult(sel);
-window.__office2d = {tasks, M, ALL, registry, useObject, pick, get busy(){ return busy; }, get picked(){ return picked; }};   // 시험용
+window.__office2d = {tasks, M, ALL, registry, VIS, visit2d, liveApply2d, LIVE2, useObject, pick, get busy(){ return busy; }, get picked(){ return picked; }};   // 시험용
 log("rakko", "출근 완료. 업무를 기다리는 중");
 setTimeout(() => say(M.hachiware, "오늘도 힘내자~!", 2600), 600);
 setTimeout(() => { if (!busy && !M.usagi.job) wander(M.usagi); }, 1800);

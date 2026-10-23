@@ -57,3 +57,13 @@ test("활동 잠금은 하나만", () => {
   assert.equal(a.end(t1), true); assert.ok(!a.busy);
   const t2 = a.tryBegin("meeting"); a.cancel(); assert.ok(t2.signal.aborted); a.end(t2);
 });
+
+test("터미널 작업 상태: 형식 검사·오래된 상태는 끝난 것으로", async () => {
+  const { normalizeLive } = await import("../shared/live.js");
+  const now = Date.parse("2026-10-23T00:00:00Z");
+  const ok = normalizeLive({state:"working", title:"작업", steps:[{who:"usagi", title:"시험", status:"doing"}, {who:"evil", title:5, status:"x"}], updatedAt:"2026-10-22T23:50:00Z"}, now);
+  assert.equal(ok.state, "working"); assert.equal(ok.steps[1].who, "rakko"); assert.equal(ok.steps[1].status, "todo");
+  assert.equal(normalizeLive({state:"working", updatedAt:"2026-10-22T20:00:00Z"}, now).state, "idle");
+  assert.equal(normalizeLive({state:"working"}, now).state, "idle");
+  assert.equal(normalizeLive("bad", now), null);
+});

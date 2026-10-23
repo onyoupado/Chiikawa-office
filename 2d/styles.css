@@ -276,3 +276,10 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
 .aibox .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .aibox input,.pastebox textarea{font-family:var(--font-ui);font-size:1rem;min-height:var(--tap);border:2px solid var(--line);border-radius:10px;padding:5px 9px;background:var(--bg);color:var(--ink);min-width:0;flex:1}
 .doc{font-family:var(--font-ui)}
+.askwrap{position:fixed;inset:0;z-index:50;background:rgba(20,22,40,.45);display:grid;place-items:center;padding:16px}
+.ask{background:var(--panel);color:var(--ink);border:2px solid var(--ink);border-radius:16px;padding:16px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px}
+.ask p{margin:0;line-height:1.6}.ask .row{justify-content:flex-end;margin-top:0}
+.entrance{position:absolute;background:linear-gradient(90deg,rgba(150,200,240,.55),rgba(190,225,255,.35));border:.3cqw solid var(--steel);border-radius:.4cqw}
+.flab.entlab{font-size:1.6cqw;color:var(--blue)}
+.mate.visitor .nm{border-color:var(--blue)}
+.livebar{background:#fff0f5;color:#2d3149;border:2px solid var(--pink);border-radius:14px;padding:8px 14px;font-size:.88rem;line-height:1.5}

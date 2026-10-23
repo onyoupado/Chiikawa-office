@@ -15,6 +15,7 @@ exports.open = async (page = "3d.html", opt = {}) => {
     r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(path.join(process.env.THREE_DIR, rel)) });
   });
   await ctx.route("https://fonts.googleapis.com/**", r => r.fulfill({ contentType: "text/css", body: "" }));   // 글꼴 서버 없이도 시험
+  await ctx.route("https://api.github.com/**", r => r.fulfill({ contentType: "application/json", body: JSON.stringify(opt.live || { state: "idle" }) }));   // 실시간 작업 상태는 가짜로
   const p = await ctx.newPage(); const errs = [];
   p.on("pageerror", e => errs.push(e.message)); p.on("console", m => { if (m.type() === "error") errs.push("console: " + m.text()); });
   await p.goto(BASE + page); await p.waitForTimeout(opt.wait ?? 2500);

@@ -98,7 +98,7 @@ const fakeClaude = (answer) => { window.claude = { use: async () => async () => 
   ({errs} = {errs});
   await b.close();
   ({b, p, errs} = await open('3d.html', {init: () => { localStorage.setItem('chiikawa3d-world-v2', '{not json'); }}));
-  ok('broken JSON → starts', errs.length === 0 && await p.evaluate(() => __office.S.coins === 50));
+  { const c = await p.evaluate(() => __office.S.coins); ok('broken JSON → starts with defaults', errs.length === 0 && c >= 50 && c < 80, JSON.stringify({c, errs})); }   // 시작하자마자 일해서 코인이 조금 늘 수 있어요
   await b.close();
 
   // placement: coins drop before click → cancel, never negative; Escape cancels

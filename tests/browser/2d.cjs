@@ -58,6 +58,13 @@ async function waitIdle(p, ms = 60000){ const t0 = Date.now(); while (Date.now()
   ok('fit toggle', await p.evaluate(() => document.getElementById('mapwrap').classList.contains('fit') && document.getElementById('fitBtn').getAttribute('aria-pressed') === 'true'));
   const fonts = await p.evaluate(() => ({bub: getComputedStyle(document.querySelector('.bub')).fontFamily, btn: getComputedStyle(document.querySelector('.btn')).fontFamily, log: getComputedStyle(document.getElementById('log')).fontFamily, doc: getComputedStyle(document.getElementById('rDoc')).fontFamily, bubSize: parseFloat(getComputedStyle(document.querySelector('.bub')).fontSize)}));
   ok('2D fonts split', fonts.bub.startsWith('Gaegu') && fonts.btn.startsWith('"Gowun') && fonts.log.startsWith('"Nanum') && fonts.doc.startsWith('"Gowun') && fonts.bubSize >= 16, JSON.stringify(fonts));
+  // 바깥 손님 (택배) · 터미널 동기화
+  await p.evaluate(() => { __office2d.ALL.forEach(c => { if (!['rakko','chiikawa','hachiware','usagi'].includes(c.id)) c.job = null; }); });
+  ok('2D courier visit completes', await p.evaluate(async () => { await __office2d.visit2d('courier'); await new Promise(r => setTimeout(r, 4000)); return __office2d.VIS.length === 0; }));
+  await p.evaluate(() => __office2d.liveApply2d({state:'working', title:'시험 작업', request:'', steps:[{who:'kani', title:'리뷰', status:'doing'}], updatedAt:Date.now()}));
+  ok('2D live bar shows', (await p.textContent('#livebar')).includes('시험 작업') && !(await p.isHidden('#livebar')));
+  await p.evaluate(() => __office2d.liveApply2d({state:'idle', title:'시험 작업', request:'', steps:[], updatedAt:Date.now()}));
+  ok('2D live bar hides', await p.isHidden('#livebar'));
   ok('no errors 2D obj', errs.length === 0, JSON.stringify(errs));
   await b.close();
   rep.done();

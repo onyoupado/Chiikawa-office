@@ -7,7 +7,7 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 ```
 너는 시니어 프론트엔드·Three.js 코드 리뷰어야.
 아래는 팬이 만든 비영리 웹 프로젝트 "치이카와 오피스"의 코드야. 바닐라 JavaScript와 Three.js r160을 쓰고, 빌드 없이 GitHub Pages에 올려서 브라우저에서 바로 실행해.
-코드를 파트 1/29부터 29/29까지 나눠서 보낼게. 마지막 파트를 받기 전까지는 "파트 k/29 받음"이라고만 짧게 답해 줘.
+코드를 파트 1/33부터 33/33까지 나눠서 보낼게. 마지막 파트를 받기 전까지는 "파트 k/33 받음"이라고만 짧게 답해 줘.
 모든 파트를 받으면, 한국어로 다음 순서대로 리뷰해 줘.
 1. 버그: 실제로 일어날 수 있는 경로(어떤 조작을 하면 무엇이 잘못되는지)와 고친 코드 조각. 심각한 것부터.
 2. 보안·개인정보: 특히 브라우저에서 Anthropic API 키를 localStorage에 저장하고 직접 호출하는 부분의 위험과 현실적인 대안.
@@ -17,29 +17,31 @@ GPT 같은 AI에게 아래 요청문을 먼저 보내고, 파트를 순서대로
 확실하지 않은 내용은 "추측"이라고 표시하고, 코드에 없는 내용을 지어내지 마.
 
 [파일 구성]
-- 3d/app.js (1828줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
+- 3d/app.js (2032줄): 3D 버전의 주 로직 (건물·거리, 캐릭터, 이동, 욕구, 관계, 과업, 상점, 이벤트, 사물 상호작용, 대화, 업무, 에이전트 회의, 상태창)
 - 3d/core.js (188줄): 3D 렌더러·카메라·화질 설정과 물체 도우미 (합치기, InstancedMesh, dispose)
 - 3d/commands.js (46줄): 글 명령 해석 (순수 함수)
 - 3d/interactions.js (31줄): 사물 상호작용 등록 구조 (순수 함수)
 - 3d/persistence.js (45줄): 3D 저장 데이터 검증·이전
 - 3d/quests.js (11줄): 과업 진행·완료 판정
-- 3d/worklog.js (64줄): 에이전트 역할과 개발 일지 데이터
+- 3d/worklog.js (76줄): 에이전트 역할과 개발 일지 데이터
 - shared/ai-client.js (84줄): AI 연결 (claude.ai 샘플 / 서버 프록시 / 데모, 90초 시간 초과)
 - shared/parse.js (82줄): 업무 답 해석·점수 정규화·프롬프트
 - shared/storage.js (45줄): localStorage 안전 읽기·쓰기·삭제
 - shared/markdown.js (18줄): 모델 출력용 안전한 마크다운
 - shared/activity-controller.js (19줄): 긴 활동 공통 잠금
 - shared/actions.js (29줄): 2D·3D 공통 행동 문구
-- 2d/app.js (873줄): 2D 버전 로직 (업무 파이프라인, 사물 상호작용)
-- 3d.html (271줄): 3D 화면 구조와 CSS
-- index.html (107줄): 2D 화면 구조
-- 2d/styles.css (278줄): 2D 스타일
+- shared/live.js (48줄): 터미널 실제 작업 동기화
+- tools/live.mjs (48줄): 작업 상태를 live 브랜치에 올리는 도구
+- 2d/app.js (977줄): 2D 버전 로직 (업무 파이프라인, 사물 상호작용)
+- 3d.html (278줄): 3D 화면 구조와 CSS
+- index.html (112줄): 2D 화면 구조
+- 2d/styles.css (285줄): 2D 스타일
 - server/proxy.mjs (84줄): 선택 서버 프록시 예시
 ```
 
-## 파트 1/29
+## 파트 1/33
 
-[파트 1/29] 파일: 3d/app.js (1/8)
+[파트 1/33] 파일: 3d/app.js (1/9)
 ```
 // 치이카와 오피스 3D: 3층 건물, 엘리베이터·에스컬레이터, 욕구·감정·관계·하루 흐름, 과업·레벨·코인·상점, 이벤트, 대화, 업무 지시
 import { THREE, CSS2DObject, $, rand, sleep, clamp, lerp, josa, view, MOBILE, REDUCED, DEV, FONT, QUALITY, Q,
@@ -57,6 +59,7 @@ import { WORLD_VERSION, sanitizeWorld } from "./persistence.js";
 import { createRegistry } from "./interactions.js";
 import { ACT_WORDS, findAct, parseCommand } from "./commands.js";
 import { questMatches, advanceQuest, markQuestDone } from "./quests.js";
+import { startLiveSync } from "../shared/live.js";
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
 // 확인 상자: 브라우저 confirm() 대신 페이지 안 상자를 써요 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
@@ -291,9 +294,9 @@ const ESC = [
 const stepCanvas = document.createElement("canvas"); stepCanvas.width = 32; stepCanvas.height = 32;
 ```
 
-## 파트 2/29
+## 파트 2/33
 
-[파트 2/29] 파일: 3d/app.js (2/8)
+[파트 2/33] 파일: 3d/app.js (2/9)
 ```
 { const g = stepCanvas.getContext("2d"); g.fillStyle = "#8a93a8"; g.fillRect(0, 0, 32, 32); g.fillStyle = "#5d6578"; g.fillRect(0, 0, 32, 5); g.fillStyle = "#ffd36b"; g.fillRect(0, 0, 2, 32); g.fillRect(30, 0, 2, 32); }
 for (const e of ESC){
@@ -526,9 +529,9 @@ const moveTag = c => c.seq || 0;
 const cancelled = (c, tag) => moveTag(c) !== tag;
 ```
 
-## 파트 3/29
+## 파트 3/33
 
-[파트 3/29] 파일: 3d/app.js (3/8)
+[파트 3/33] 파일: 3d/app.js (3/9)
 ```
 function elevWant(f, c, on){ const e = ELEV[f]; on ? e.users.add(c.id) : e.users.delete(c.id); e.want = e.users.size ? 1 : 0; }
 async function elevator(c, to, tag = moveTag(c)){
@@ -567,7 +570,9 @@ async function walkTo(c, p, tag = moveTag(c)){
 
 /* ================= view / floors / camera ================= */
 let viewFloor = 1;
-const visibleChar = c => viewFloor === 0 || c.floor === viewFloor || (c.ride && (c.ride.e.f0 === viewFloor || c.ride.e.f1 === viewFloor));
+// 지금 보는 층에 있는 캐릭터만 보여요 (건물 전체 보기는 모두, 에스컬레이터를 타는 중이면 출발·도착 층 모두). 항상 true/false로 돌려줘요:
+// three.js는 visible이 정확히 false일 때만 숨기기 때문에 undefined가 섞이면 다른 층 캐릭터가 그려져요.
+const visibleChar = c => viewFloor === 0 || c.floor === viewFloor || !!(c.ride && (c.ride.e.f0 === viewFloor || c.ride.e.f1 === viewFloor));
 function applyView(){
   for (const f of [1, 2, 3]){ G[f].visible = viewFloor === 0 || viewFloor === f; LABELS[f].forEach(o => o.visible = viewFloor === f); }
   for (const e of ESC) e.group.visible = viewFloor === 0 || viewFloor === e.f0 || viewFloor === e.f1;
@@ -757,13 +762,13 @@ function applyTime(){
   $("clock").textContent = `${p.icon} ${hh}:${mm} · ${p.name}`;
 }
 
+```
+
+## 파트 4/33
+
+[파트 4/33] 파일: 3d/app.js (4/9)
+```
 /* ================= needs, actions ================= */
-```
-
-## 파트 4/29
-
-[파트 4/29] 파일: 3d/app.js (4/8)
-```
 const allowed = (c, k) => ACTIONS[k] && !ACTIONS[k].hidden && (!ACTIONS[k].only || ACTIONS[k].only === c.id) && (!ACTIONS[k].need || ACTIONS[k].need());
 const xpNeed = lv => 60 + lv * 40;
 const skLv = xp => Math.min(10, Math.floor(Math.sqrt(xp / 15)) + 1);
@@ -1015,9 +1020,9 @@ $("shop").addEventListener("click", e => {
     if (viewFloor === 0) showFloor(1); view.scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block:"center"}); }
 ```
 
-## 파트 5/29
+## 파트 5/33
 
-[파트 5/29] 파일: 3d/app.js (5/8)
+[파트 5/33] 파일: 3d/app.js (5/9)
 ```
   if ((kind === "up" || kind === "hat") && S.coins < (kind === "up" ? UPGRADES : HATS)[id].price) return log("코인이 모자라요", true);
   if (kind === "up"){ S.coins -= UPGRADES[id].price; S.up[id] = true; addCoins(0); log(`🛠️ ${UPGRADES[id].name} 설치! ${UPGRADES[id].desc}`); }
@@ -1041,10 +1046,90 @@ const hideToast = () => { $("toast").hidden = true; };   // 버튼 행동(eventA
 function endEvent(expected, msg, coins = 0){
   if (eventActive !== expected) return false;
   eventActive = null;
+  eventVisitors.forEach(v => visitorLeave(v)); eventVisitors = [];      // 이벤트가 끝나면 남은 손님은 정문으로 나가요
   eventObjs.forEach(o => { if (o.userData.interactiveId) unregisterObj(o.userData.interactiveId); disposeObject(o); }); eventObjs = []; bobObj = null;
   hideToast(); if (msg) log(msg); if (coins) addCoins(coins); emit("event");
   return true;
 }
+/* ================= visitors: 정문으로 들어오는 바깥 손님 ================= */
+// 택배 기사·배달 라이더·외부 손님이 인도 → 정문 → 1층 로비로 걸어 들어와요. 캐릭터가 마중 나가서 받고, 손님은 다시 정문으로 나가요.
+const LOBBY = {x:1095, y:598}, RECEPTION = {x:1052, y:588}, DOOR_OUT = {x:1095, y:668};
+label(1, "로비 · 정문", 1095, 628, 4); plane(1, 1045, 600, 100, 40, "#cfe0f3", .9);      // 정문 앞 매트
+box(1, 1000, 545, 26, 60, 34, "#e8d2b4");                                                 // 안내 데스크
+const VISITOR = {
+  courier:{name:"택배 기사님", body:"#c9a07a", cap:"#2b7de9", item:"box", from:() => ({x:rand([-420, 1650]), y:735})},
+  rider:{name:"배달 라이더", body:"#ffb38a", cap:"#ff6b4a", item:"food", from:() => ({x:rand([-420, 1650]), y:735})},
+  guest:{name:"외부 손님", body:"#bfe3d6", cap:"#6f5cc4", item:"bag", from:() => ({x:780, y:742})},     // 버스 정류장에서 내려요
+};
+const visitors = [];
+function visitorTexture(kind){
+  const K = VISITOR[kind], cv = document.createElement("canvas"); cv.width = 128; cv.height = 150;
+  const g = cv.getContext("2d"), L = "#33364a";
+  g.lineWidth = 4; g.strokeStyle = L;
+  g.fillStyle = K.body; g.beginPath(); g.ellipse(64, 104, 40, 40, 0, 0, 7); g.fill(); g.stroke();                  // 몸
+  g.fillStyle = "#fff"; g.beginPath(); g.ellipse(64, 62, 36, 32, 0, 0, 7); g.fill(); g.stroke();                   // 얼굴
+  g.fillStyle = K.cap; g.beginPath(); g.ellipse(64, 40, 34, 16, 0, Math.PI, 0); g.fill(); g.stroke();             // 모자
+  g.fillRect(64, 36, 40, 8);
+  g.fillStyle = L; g.beginPath(); g.arc(52, 64, 4, 0, 7); g.arc(76, 64, 4, 0, 7); g.fill();                       // 눈
+  g.fillStyle = "rgba(255,143,177,.7)"; g.beginPath(); g.ellipse(40, 74, 7, 4, 0, 0, 7); g.ellipse(88, 74, 7, 4, 0, 0, 7); g.fill();
+  if (K.item === "box"){ g.fillStyle = "#d9a86c"; g.fillRect(70, 96, 46, 38); g.strokeRect(70, 96, 46, 38); g.beginPath(); g.moveTo(93, 96); g.lineTo(93, 134); g.stroke(); }
+  if (K.item === "food"){ g.fillStyle = "#fff3f6"; g.fillRect(72, 100, 44, 30); g.strokeRect(72, 100, 44, 30); g.fillStyle = "#ff6b4a"; g.fillRect(72, 108, 44, 6); }
+  if (K.item === "bag"){ g.fillStyle = "#3a3f55"; g.fillRect(80, 104, 36, 28); g.strokeRect(80, 104, 36, 28); g.strokeRect(90, 96, 16, 10); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function spawnVisitor(kind){
+  const K = VISITOR[kind], start = K.from();
+  const v = {kind, name:K.name, x:start.x, y:start.y, path:[], resolve:null, t:0, face:1};
+  v.mat = new THREE.SpriteMaterial({map:visitorTexture(kind), transparent:true, alphaTest:.1});
+  v.sprite = new THREE.Sprite(v.mat); v.sprite.center.set(.5, 0); v.sprite.scale.set(52, 61, 1); v.sprite.userData.sharedGeometry = true;   // Sprite 기하는 모든 스프라이트가 같이 써요
+  v.obj = new THREE.Group(); v.obj.add(v.sprite); scene.add(v.obj);
+  const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = K.name; v.nmO = new CSS2DObject(nm); v.obj.add(v.nmO);
+  const bub = document.createElement("div"); bub.className = "bub"; v.bubEl = bub; v.bubO = new CSS2DObject(bub); v.bubO.position.y = 100; v.obj.add(v.bubO);
+  visitors.push(v); return v;
+}
+function vSay(v, text, ms = 2600){ v.bubEl.textContent = text; v.bubEl.classList.add("show"); clearTimeout(v.bubT); v.bubT = setTimeout(() => v.bubEl.classList.remove("show"), ms); }
+function vWalk(v, pts){
+  if (v.resolve){ const r = v.resolve; v.resolve = null; r(false); }
+  v.path = pts.map(p => ({x:p.x, y:p.y})); return new Promise(res => { v.resolve = res; });
+}
+// 바깥 → 정문 → 로비, 로비 → 건물 안 (복도를 따라)
+const enterPath = v => [{x:v.x, y:735}, {x:DOOR_OUT.x, y:735}, DOOR_OUT, LOBBY];
+const leavePath = v => [...(v.y < LOBBY.y - 4 ? route(1, {x:v.x, y:v.y}, LOBBY) : [LOBBY]), DOOR_OUT, {x:DOOR_OUT.x, y:735}, {x:rand([-460, 1700]), y:735}];
+async function visitorLeave(v, line){
+  if (v.leaving) return; v.leaving = true;
+  if (line) vSay(v, line, 2400);
+  await vWalk(v, leavePath(v));
+  const k = visitors.indexOf(v); if (k >= 0) visitors.splice(k, 1);
+  clearTimeout(v.bubT); v.mat.map.dispose(); disposeObject(v.obj); v.nmO.element.remove(); v.bubEl.remove();   // 손님별 텍스처·재질 정리
+}
+function visitorTick(dt){
+  const show = viewFloor === 0 || viewFloor === 1;
+  for (const v of visitors){
+    v.t += dt; let bob = 0;
+    if (v.path.length){
+      const g = v.path[0], dx = g.x - v.x, dy = g.y - v.y, d = Math.hypot(dx, dy), step = 100 * dt;
+      if (Math.abs(dx) > 1){ const fc = dx < 0 ? -1 : 1; if (fc !== v.face){ v.face = fc; v.sprite.scale.x = Math.abs(v.sprite.scale.x) * fc; } }
+      if (d <= step){ v.x = g.x; v.y = g.y; v.path.shift(); } else { v.x += dx / d * step; v.y += dy / d * step; }
+      bob = Math.abs(Math.sin(v.t * 11)) * (REDUCED ? 1 : 4);
+      if (!v.path.length){ const r = v.resolve; v.resolve = null; r && r(true); }
+    }
+    v.obj.position.copy(W(v.x, v.y, 1)); v.sprite.position.y = bob;
+    v.obj.visible = show; v.nmO.visible = show && viewFloor !== 0; v.bubO.visible = show && viewFloor !== 0;
+  }
+}
+// 로비로 마중 나갈 친구: 1층에서 한가한 친구 중 가까운 순서 (명령받은 친구·업무 중인 친구는 빼요)
+function greeter(prefer){
+  const now = performance.now(), free = CH.filter(c => c.manual < now && !c.ride && !c.hidden && c.act?.kind !== "sleep");
+  const p = prefer && BY[prefer]; if (p && free.includes(p)) return p;
+  const pool = free.length ? free : CH.filter(c => c.manual !== Infinity);
+  return pool.sort((a, b) => (a.floor !== 1) - (b.floor !== 1) || Math.hypot(a.x - LOBBY.x, a.y - LOBBY.y) - Math.hypot(b.x - LOBBY.x, b.y - LOBBY.y))[0] || null;
+}
+async function meetAtLobby(c, v, line){
+  let ok = false;
+  await runSeq(c, [async () => { ok = await walkTo(c, {f:1, ...RECEPTION}); if (ok){ say(c, line, 2200); await sleep(1600); } }]);
+  return ok && !v.leaving;
+}
+
 async function sendHelpers(ids, spot, actLine, secs){
   const helpers = ids.map(id => BY[id]).filter(Boolean);
   await Promise.all(helpers.map((c, i) => runSeq(c, [async () => {
@@ -1054,22 +1139,90 @@ async function sendHelpers(ids, spot, actLine, secs){
     c.act = null;
   }])));
 }
+// 탕비실 식탁에 모여 먹기 (케이크·배달 음식 공통). 명령받은 친구는 빼요.
+function gatherToEat(key, endMsg, lines){
+  const SEATS1 = [{x:800,y:240},{x:860,y:240},{x:830,y:302},{x:770,y:270},{x:890,y:270},{x:800,y:300},{x:860,y:300},{x:830,y:230}];
+  CH.filter(c => c.manual < performance.now()).forEach((c, i) => runSeq(c, [async () => {
+    if (!await walkTo(c, {f:1, ...SEATS1[i % SEATS1.length]})) return;
+    say(c, rand(lines), 2000); c.act = {kind:"busy", t0:performance.now()};
+    for (let s = 0; s < 5; s++){ await sleep(1000); c.needs.hunger = clamp(c.needs.hunger + 6, 0, 100); c.needs.fun = clamp(c.needs.fun + 4, 0, 100); }
+    c.act = null; CH.forEach(o => { if (o !== c && o.floor === 1 && Math.hypot(o.x - c.x, o.y - c.y) < 120) addRel(c, o, 1); });
+  }], true));
+  setTimeout(() => endEvent(key, endMsg, 20), 26000);
+}
+let eventVisitors = [];
 const EVENTS = {
+  // 택배: 기사님이 정문으로 들어와 로비에서 기다려요. 받으러 가면 상자를 로비에 두고 나가요.
   parcel(){
-    eventObjs = [box(1, 480, CY - 14, 30, 28, 24, "#c9a07a"), box(1, 480, CY - 1, 30, 2, 24.5, "#e8d2b4")];
-    toast("📦 택배가 왔어요! (1층 복도)", "열어 보기", () => { const c = rand(CH.filter(o => o.floor === 1)) || rand(CH); say(c, "와아… 선물이다!", 2000); endEvent("parcel", "📦 택배를 열었어요!", 30 + Math.floor(Math.random() * 50)); });
-    return 50;
+    const v = spawnVisitor("courier"); eventVisitors.push(v);
+    vWalk(v, enterPath(v)).then(ok => { if (!ok || eventActive !== "parcel") return; vSay(v, "택배 왔어요~!", 3000); });
+    let handled = false;
+    const receive = async () => {
+      if (handled || eventActive !== "parcel") return; handled = true; hideToast();
+      const c = greeter(); if (c){ log(`${josa(c.name, "이가")} 택배를 받으러 로비로 가요`); await meetAtLobby(c, v, "감사합니다!"); }
+      if (eventActive !== "parcel") return;
+      vSay(v, "여기 사인해 주세요~", 2000); await sleep(1800);
+      eventObjs.push(box(1, 1118, 590, 30, 28, 24, "#c9a07a"), box(1, 1118, 603, 30, 2, 24.5, "#e8d2b4"));
+      visitorLeave(v, "좋은 하루 되세요!");
+      toast("📦 택배를 받았어요! (1층 로비)", "열어 보기", () => { const o = c || rand(CH); say(o, "와아… 선물이다!", 2000); endEvent("parcel", "📦 택배를 열었어요!", 30 + Math.floor(Math.random() * 50)); });
+      registerEventObjs("parcel", 1);
+    };
+    toast("📦 택배 기사님이 정문으로 들어오고 있어요", "받으러 가기", receive);
+    setTimeout(() => { if (!handled && eventActive === "parcel"){ log("📦 아무도 안 나와서 기사님이 로비에 두고 갔어요"); handled = true;
+      eventObjs.push(box(1, 1118, 590, 30, 28, 24, "#c9a07a")); visitorLeave(v, "문 앞에 두고 갈게요~");
+      toast("📦 로비에 택배가 놓여 있어요", "열어 보기", () => endEvent("parcel", "📦 택배를 열었어요!", 20)); registerEventObjs("parcel", 1); } }, 45000);
+    return 120;
+  },
+  // 음식 배달: 라이더가 로비까지 오면 받아서 탕비실 식탁에 차리고 다 같이 먹어요
+  delivery(){
+    const v = spawnVisitor("rider"); eventVisitors.push(v);
+    vWalk(v, enterPath(v)).then(ok => { if (ok && eventActive === "delivery") vSay(v, "배달 왔습니다~!", 3000); });
+    let handled = false;
+    const receive = async () => {
+      if (handled || eventActive !== "delivery") return; handled = true; hideToast();
+      const c = greeter("kurimanju"); if (c){ log(`${josa(c.name, "이가")} 배달 음식을 받으러 가요`); await meetAtLobby(c, v, "캬~ 맛있겠다!"); }
+      if (eventActive !== "delivery") return;
+      visitorLeave(v, "맛있게 드세요!");
+      eventObjs.push(cyl(1, 812, 275, 12, 6, "#fff3f6", 26), cyl(1, 848, 275, 12, 6, "#ffe0b3", 26), box(1, 822, 266, 18, 16, 10, "#ff6b4a", 26));
+      log("🍱 탕비실 식탁에 음식을 차렸어요. 다들 모여~");
+      gatherToEat("delivery", "🍱 다 같이 배달 음식을 먹었어요!", ["맛있다…!","배달 최고~","냠냠!","야하!"]);
+    };
+    toast("🛵 주문한 음식이 도착했어요! (1층 로비)", "받으러 가기", receive);
+    setTimeout(() => { if (!handled) receive(); }, 30000);        // 아무도 안 누르면 알아서 받으러 가요
+    return 0;
+  },
+  // 외부 손님 미팅: 랏코가 로비에서 맞이해 회의실로 안내하고, 두 명이 함께 미팅해요
+  guest(){
+    const v = spawnVisitor("guest"); eventVisitors.push(v);
+    vWalk(v, enterPath(v)).then(ok => { if (ok && eventActive === "guest") vSay(v, "안녕하세요, 미팅하러 왔어요!", 3200); });
+    let handled = false;
+    const host = async () => {
+      if (handled || eventActive !== "guest") return; handled = true; hideToast();
+      const lead = greeter("rakko"); if (!lead){ visitorLeave(v, "다음에 다시 올게요~"); endEvent("guest"); return; }
+      log(`🤝 ${josa(lead.name, "이가")} 외부 손님을 맞이해요`);
+      await meetAtLobby(lead, v, "어서 오세요. 회의실로 안내할게요.");
+      if (eventActive !== "guest") return;
+      const seat = S1.meet[1], mates = CH.filter(c => c !== lead && c.manual < performance.now() && c.floor === 1 && !c.ride && !c.hidden).slice(0, 2);
+      await Promise.all([
+        vWalk(v, route(1, {x:v.x, y:v.y}, seat)),
+        runSeq(lead, [() => walkTo(lead, {f:1, ...S1.meet[0]})]),
+        ...mates.map((c, i) => runSeq(c, [() => walkTo(c, {f:1, ...S1.meet[2 + i]})])),
+      ]);
+      if (eventActive !== "guest") return;
+      const LINES = [[v, "이번에 같이 하고 싶은 일이 있어서 왔어요."], [lead, "좋습니다. 자세히 들어 볼게요."], [mates[0], "자료는 제가 정리할게요!"], [v, "일정은 다음 달 초면 좋겠어요."], [mates[1] || lead, "할 수 있어요…!"], [lead, "좋아요. 정리해서 연락드릴게요."]];
+      for (const [who, text] of LINES){ if (!who || eventActive !== "guest") continue; who.kind ? vSay(who, text, 3200) : say(who, text, 3200); log(`🤝 ${who.name}: ${text}`); await sleep(2800); }
+      [lead, ...mates].forEach(c => { addXP(c, 10, "social"); addRel(c, lead, .5); });
+      visitorLeave(v, "감사합니다! 또 올게요~");
+      endEvent("guest", "🤝 외부 손님과 미팅을 마쳤어요", 60);
+    };
+    toast("🤝 외부 손님이 미팅하러 오고 있어요", "맞이하기", host);
+    setTimeout(() => { if (!handled) host(); }, 40000);
+    return 0;
   },
   cake(){
     eventObjs = [cyl(1, 830, 275, 14, 16, "#fff3f6", 26), cyl(1, 830, 275, 2, 8, "#ffd36b", 42)];
     toast("🎂 누가 케이크를 사 왔어요! 다들 탕비실로~");
-    CH.filter(c => c.manual < performance.now()).forEach((c, i) => runSeq(c, [async () => {   // 명령받은 친구는 빼고
-      if (!await walkTo(c, {f:1, ...[{x:800,y:240},{x:860,y:240},{x:830,y:302},{x:770,y:270},{x:890,y:270},{x:800,y:300},{x:860,y:300},{x:830,y:230}][i]})) return;
-      say(c, rand(["맛있다…!","케이크다~","야하!"]), 2000); c.act = {kind:"busy", t0:performance.now()};
-      for (let s = 0; s < 5; s++){ await sleep(1000); c.needs.hunger = clamp(c.needs.hunger + 6, 0, 100); c.needs.fun = clamp(c.needs.fun + 4, 0, 100); }
-      c.act = null; CH.forEach(o => { if (o !== c && o.floor === 1 && Math.hypot(o.x - c.x, o.y - c.y) < 120) addRel(c, o, 1); });
-    }], true));
-    setTimeout(() => endEvent("cake", "🎂 다 같이 케이크를 먹었어요!", 20), 26000);
+    gatherToEat("cake", "🎂 다 같이 케이크를 먹었어요!", ["맛있다…!","케이크다~","야하!"]);
     return 30;
   },
   blackout(){
@@ -1102,7 +1255,7 @@ function startEvent(force){
   if (eventActive || document.hidden || (!force && (isNight() || activity.busy))) return false;   // 업무·회의 중에는 이벤트를 미뤄요
   const k = typeof force === "string" && EVENTS[force] ? force : rand(Object.keys(EVENTS)); eventActive = k; SFX.event(); log(`🔔 이벤트!`);
   const ttl = EVENTS[k](); registerEventObjs(k);
-  if (ttl) setTimeout(() => endEvent(k, k === "parcel" ? "📦 누군가 택배를 정리했어요" : null, k === "parcel" ? 20 : 0), ttl * 1000);
+  if (ttl) setTimeout(() => endEvent(k, k === "parcel" ? "📦 누군가 택배를 정리했어요" : null, k === "parcel" ? 20 : 0), ttl * 1000);   // 너무 오래 걸리면 정리
   return true;
 }
 setInterval(() => { if (Math.random() < .5) startEvent(); }, 150000);
@@ -1141,6 +1294,12 @@ function openChat(c){
   if (!c.chatLog.length) addMsg(c, "them", LOCAL[c.id].greet[0]);
 }
 function renderChat(){
+```
+
+## 파트 6/33
+
+[파트 6/33] 파일: 3d/app.js (6/9)
+```
   const c = chatWith; if (!c){ $("msgs").replaceChildren(); return; }
   $("chatSub").textContent = `${TRAITS[c.id].title} · 나와의 사이: ${relTier(c.prel).name} ${relTier(c.prel).h} (${Math.round(c.prel)})`;
   $("msgs").replaceChildren(...c.chatLog.map(m => { const d = document.createElement("div"); d.className = `msg ${m.r}`; d.textContent = m.t; return d; }));
@@ -1267,12 +1426,6 @@ $("taskGo").onclick = async () => {
 };
 
 /* ================= photo ================= */
-```
-
-## 파트 6/29
-
-[파트 6/29] 파일: 3d/app.js (6/8)
-```
 $("photoBtn").onclick = async () => {
   renderer.render(scene, camera);
   const src = renderer.domElement, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height;
@@ -1384,6 +1537,12 @@ function runCommand(text){
 }
 $("cmdForm").addEventListener("submit", e => { e.preventDefault(); const v = $("cmd").value.trim(); if (!v) return; runCommand(v); $("cmd").value = ""; });
 $("who").innerHTML = CH.map(c => `<button type="button" class="chip who" data-id="${c.id}">${c.name}</button>`).join("");
+```
+
+## 파트 7/33
+
+[파트 7/33] 파일: 3d/app.js (7/9)
+```
 $("who").addEventListener("click", e => { const b = e.target.closest(".chip"); if (!b) return; const c = BY[b.dataset.id]; select(selected === c ? null : c); });
 const EXAMPLES = ["모두 회의실로 모여","우사기 테라스로 가","하치와레 노래 불러","치이카와 영화 봐","랏코 검술 수련해","모몽가 애교 부려","쿠리만쥬 한 잔 해","하치와레랑 시사 보드게임 해","모두 기숙사로 가","카니 책 정리해"];
 $("ex").innerHTML = EXAMPLES.map(t => `<button type="button" class="chip">${t}</button>`).join("");
@@ -1539,12 +1698,6 @@ async function standup(){
     await speak(c, c.id === "usagi" ? `우라! (${did} 했다는 듯 손가락을 폄)` : c.id === "chiikawa" ? `…${did} 했어…! 오늘도 할 수 있어…!` : `${did} 했어! 오늘은 ${ROLES[c.id].role} 일 계속할게!`);
   }
   await speak(BY.rakko, "좋아. 오늘도 잘 부탁해.");
-```
-
-## 파트 7/29
-
-[파트 7/29] 파일: 3d/app.js (7/8)
-```
   emit("meeting");
   } finally { release(team); activity.end(tok); }
 }
@@ -1609,9 +1762,10 @@ function registerDecor(d, g){
   registry.register({id, name:it.name, floor:d.f, actions:[it.act], spot:P(d.f, d.x, d.y + 30), object:g, decor:d});
 }
 // 이벤트 물체 (택배, 수상한 녀석): 알림 버튼과 같은 행동을 해요
-function registerEventObjs(k){
+function registerEventObjs(k, floor){
   const o = eventObjs[0]; if (!o || !eventAction) return;
-  registry.register({id:"event-" + k, name:{parcel:"택배 상자", intruder:"수상한 녀석", cake:"케이크"}[k] || "이벤트", floor:k === "intruder" ? 3 : 1, actions:["__event"], custom:eventAction, object:o, spot:null});
+  registry.unregister("event-" + k);
+  registry.register({id:"event-" + k, name:{parcel:"택배 상자", intruder:"수상한 녀석", cake:"케이크"}[k] || "이벤트", floor:floor || (k === "intruder" ? 3 : 1), actions:["__event"], custom:eventAction, object:o, spot:null});
 }
 const spotOf = it => typeof it.spot === "function" ? it.spot() : it.spot;
 const actLabel = (it, k) => k === "__event" ? it.custom.label : objectActionLabel(it.name, k);
@@ -1657,6 +1811,12 @@ function showMenu(it, px, py){
   m.append(btn("닫기", hideMenu));
   m.hidden = false;
   const r = view.getBoundingClientRect(), w = m.offsetWidth, hh = m.offsetHeight;
+```
+
+## 파트 8/33
+
+[파트 8/33] 파일: 3d/app.js (8/9)
+```
   m.style.left = `${clamp(px - r.left - w / 2, 8, r.width - w - 8)}px`; m.style.top = `${clamp(py - r.top - hh - 12, 8, r.height - hh - 8)}px`;
   m.querySelector("button:not(:disabled)")?.focus({preventScroll:true});
 }
@@ -1701,6 +1861,58 @@ function setHover(it, ev){
   const sm = document.createElement("small"); sm.textContent = why || (it.custom ? it.custom.label : it.actions.map(k => ACTIONS[k]?.name).filter(Boolean).join(" · ")); tip.append(sm);
   tip.style.left = `${ev.clientX - r.left}px`; tip.style.top = `${ev.clientY - r.top}px`; tip.hidden = false;
 }
+
+/* ================= live: 터미널의 실제 작업과 동기화 ================= */
+// Claude Code가 실제로 일하는 동안(tools/live.mjs나 아티팩트 db로 알려 주면) 맡은 캐릭터가 자리에서 그 일을 하고, 보드에 단계가 보여요.
+const LIVE = {status:null, working:new Map(), wasOn:false};
+const STEP_TXT = {todo:"할 일", doing:"진행 중", done:"완료"};
+function renderLive(st){
+  const on = st?.state === "working", pill = $("livePill"), box = $("liveBox");
+  const done = st ? st.steps.filter(s => s.status === "done").length : 0;
+  pill.hidden = !on; if (on) pill.textContent = `🛠 터미널 작업 중: ${st.title || "작업"}${st.steps.length ? ` (${done}/${st.steps.length})` : ""}`;
+  const head = document.createElement("p"); head.className = "note"; head.style.marginTop = "0";
+  head.textContent = on ? `지금 터미널에서 실제로 하고 있는 일이에요${st.request ? `: ${st.request}` : ""}`
+    : st?.title ? `지금은 터미널 작업이 없어요. 마지막 작업: ${st.title}${st.updatedAt ? ` (${new Date(st.updatedAt).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"})})` : ""}` : "터미널 작업 소식이 아직 없어요.";
+  const list = document.createElement("ul"); list.className = "livesteps";
+  for (const s of st?.steps || []){
+    const li = document.createElement("li"); li.className = s.status;
+    const b = document.createElement("b"); b.textContent = `${NAMES[s.who]} · ${ROLES[s.who].short}`;
+    const t = document.createElement("span"); t.textContent = s.title;
+    const m = document.createElement("small"); m.textContent = STEP_TXT[s.status];
+    li.append(b, t, m); list.append(li);
+  }
+  box.replaceChildren(head, list);
+}
+function liveApply(st){
+  LIVE.status = st; renderLive(st);
+  const on = st?.state === "working", now = performance.now();
+  if (on !== LIVE.wasOn){ log(on ? `🛠 터미널에서 실제 작업을 시작했어요: ${st.title}` : "✅ 터미널의 실제 작업이 끝났어요"); LIVE.wasOn = on; }
+  const doing = new Map(on ? st.steps.filter(s => s.status === "doing").map(s => [s.who, s.title]) : []);
+  // 끝난 단계: 자리에서 일어나 기뻐해요
+  for (const [id, tag] of LIVE.working) if (!doing.has(id)){
+    const c = BY[id]; LIVE.working.delete(id);
+    if (c.seq === tag){ c.cur = null; c.act = {kind:"jump", t0:now}; say(c, rand(["끝!","다 했다~","야하!","…완료!"]), 2000); c.manual = now + 6000; }
+    if (DESK[id]) monitors[id].redraw(`${c.name}\n휴식 중`);
+  }
+  // 진행 중 단계: 맡은 캐릭터가 자리로 가서 일해요 (내가 직접 시킨 행동·업무 지시 중인 친구는 끝난 뒤에)
+  for (const [id, title] of doing){
+    const c = BY[id];
+    if (LIVE.working.has(id)){ if (LIVE.working.get(id) === c.seq) continue; LIVE.working.delete(id); }   // 다른 명령으로 불려 갔으면 끝난 뒤 다시 자리로
+    if (c.manual > now || (activity.busy && c.manual === Infinity)) continue;
+    runSeq(c, [async () => {
+      if (!await walkTo(c, workSpot(c)) || !LIVE.working.has(id)) return;
+      c.cur = "devwork"; c.act = {kind:"busy", t0:performance.now()}; say(c, title.length > 20 ? title.slice(0, 19) + "…" : title, 2600);
+      for (let k = 0; LIVE.working.get(id) === c.seq; k++){
+        if (DESK[id]) monitors[id].redraw(`${c.name}\n${title.slice(0, 11)}\n${"▮".repeat(k % 8 + 1)}`);
+        if (k % 12 === 6) say(c, rand(["타닥타닥…","집중!","거의 다 왔어","…!"]), 1600);
+        await sleep(1500);
+      }
+    }], true);
+    LIVE.working.set(id, c.seq);
+  }
+}
+startLiveSync(liveApply);
+setInterval(() => { if (LIVE.status) liveApply(LIVE.status); }, 10000);    // 바빴던 친구도 나중에 합류하게
 
 /* ================= panels ================= */
 // 진행 막대: 화면 읽기 프로그램이 값을 읽을 수 있게 role=progressbar
@@ -1797,12 +2009,6 @@ $("status").addEventListener("click", e => {
   const t = e.target.closest(".trow"); if (t) return select(BY[t.dataset.id]);
   if (e.target.closest("#closeSel")) return select(null);
   const ob = e.target.closest(".obj");
-```
-
-## 파트 8/29
-
-[파트 8/29] 파일: 3d/app.js (8/8)
-```
   if (ob){ const it = registry.get(ob.dataset.obj); if (!it) return; if (ob.getAttribute("aria-disabled") === "true") return log(whyNot(selected, it, ob.dataset.a) || "지금은 할 수 없어요", true); return useObject(selected, it, ob.dataset.a); }
   const b = e.target.closest(".act"); if (!b || !selected || b.disabled) return;
   const c = selected, k = b.dataset.a;
@@ -1871,18 +2077,24 @@ function tick(){
       else if (k === "spin"){ rot = e * 8; if (e > 2.4){ c.act = null; rot = 0; } }
       else if (k === "sleep"){ rot = Math.PI / 2 * .9; bob = 14; }
       else if (k === "say"){ bob = Math.abs(Math.sin(e * 5)) * 3; if (e > 3) c.act = null; }
+```
+
+## 파트 9/33
+
+[파트 9/33] 파일: 3d/app.js (9/9)
+```
       else if (k === "busy"){ bob = Math.abs(Math.sin(e * 4)) * 3; rot = Math.sin(e * 3) * .05; }
     }
     c.mat.rotation = rot;
     c.obj.position.copy(W(c.x, c.y, 1)); c.obj.position.y = h; c.sprite.position.y = bob;
     const vis = visibleChar(c) && !c.hidden;
-    c.obj.visible = vis; c.nmO.visible = vis && viewFloor !== 0; c.bubO.visible = vis && viewFloor !== 0;
+    c.obj.visible = !!vis; c.nmO.visible = !!vis && viewFloor !== 0; c.bubO.visible = !!vis && viewFloor !== 0;
     c.gem.rotation.y += dt * 1.6; c.gem.position.y = c.H + 22 + bob + Math.sin(c.t * 2) * 2; c.gem.visible = c.act?.kind !== "sleep";
     c.hatG.position.y = c.H - 6 + bob; c.hatG.visible = c.act?.kind !== "sleep";
     if ((c.gemT = (c.gemT || 0) + dt) > .5){ c.gemT = 0; const col = moodColor(mood(c)); c.gem.material.color.copy(col); c.gem.material.emissive.copy(col).multiplyScalar(.5); }
   }
   if (selected){ ring.visible = visibleChar(selected) && !selected.hidden; ring.position.copy(selected.obj.position); ring.position.y += 1.2; ring.material.opacity = .6 + Math.sin(now / 200) * .3; }
-  camTick(dt); cityTick(dt);
+  camTick(dt); cityTick(dt); visitorTick(dt);
   controls.update();
   renderer.render(scene, camera); labels.render(scene, camera);
 }
@@ -1903,7 +2115,7 @@ applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); re
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
+window.__office = {CH, S, ESC, visitors, liveApply, LIVE, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
 if (DEV){   // ?dev=1 로 열면 그리기 요청·메모리 숫자를 보여 줘요 (일반 사용자에게는 숨김)
   const d = $("devStats"); d.hidden = false; let frames = 0, t0 = performance.now();
   const loop = () => { frames++; const now = performance.now(); if (now - t0 > 1000){ const i = renderer.info; d.textContent = `fps ${Math.round(frames * 1000 / (now - t0))}\ncalls ${i.render.calls}\ntris ${i.render.triangles}\ngeo ${i.memory.geometries}\ntex ${i.memory.textures}\nobjs ${registry.size}`; frames = 0; t0 = now; } requestAnimationFrame(loop); };
@@ -1913,9 +2125,9 @@ log("출근 완료! 캐릭터를 누르거나 명령을 써 보세요.");
 setTimeout(() => say(BY.hachiware, "오늘도 힘내자~!", 2600), 800);
 ```
 
-## 파트 9/29
+## 파트 10/33
 
-[파트 9/29] 파일: 3d/core.js (1/1)
+[파트 10/33] 파일: 3d/core.js (1/1)
 ```
 // 3D 공통 바탕: 렌더러·장면·카메라·화질 설정과 물체를 만드는 도우미들
 import * as THREE from "three";
@@ -2107,9 +2319,9 @@ export function sofa(f, x, y, w, col = "#ff9fb8"){
 export const state = { broken: {} };
 ```
 
-## 파트 10/29
+## 파트 11/33
 
-[파트 10/29] 파일: 3d/commands.js (1/1)
+[파트 11/33] 파일: 3d/commands.js (1/1)
 ```
 // 글 명령 해석 (순수 함수). 화면을 움직이는 일은 app.js가 해요.
 export const ACT_WORDS = [["coffee",/커피/],["snack",/간식|과자|푸딩/],["meal",/밥|식사|점심|저녁 먹/],["water",/물 마|물마/],["toilet",/화장실 가|쉬야/],["wash",/손 씻|씻어|씻자/],["shower",/샤워/],
@@ -2159,9 +2371,9 @@ export function parseCommand(s, ctx){
 }
 ```
 
-## 파트 11/29
+## 파트 12/33
 
-[파트 11/29] 파일: 3d/interactions.js (1/1)
+[파트 12/33] 파일: 3d/interactions.js (1/1)
 ```
 // 사물 상호작용 등록 구조. Three.js에 의존하지 않아서 단독으로 테스트할 수 있어요.
 // meta: {id, name, actions:[행동키], floor, spot:{f,x,y}, enabled?:()=>true|string(비활성 이유), object?}
@@ -2196,9 +2408,9 @@ export function createRegistry(){
 }
 ```
 
-## 파트 12/29
+## 파트 13/33
 
-[파트 12/29] 파일: 3d/persistence.js (1/1)
+[파트 13/33] 파일: 3d/persistence.js (1/1)
 ```
 // 3D 월드 저장 데이터: 버전, 검증, 이전(마이그레이션). 손상된 값은 기본값으로 바꿔서 앱이 멈추지 않게 해요.
 import { isObj, num, int, str } from "../shared/storage.js";
@@ -2247,9 +2459,9 @@ export function sanitizeWorld(raw, schema){
 }
 ```
 
-## 파트 13/29
+## 파트 14/33
 
-[파트 13/29] 파일: 3d/quests.js (1/1)
+[파트 14/33] 파일: 3d/quests.js (1/1)
 ```
 // 과업 진행·완료 판정 (순수 함수). 보상 지급 전에 완료 표시를 먼저 해서 중복 지급을 막아요.
 // q: {i, n, p, w, reward, doneAt?}, Q: {ev?:[], who?:bool}
@@ -2264,9 +2476,9 @@ export function advanceQuest(q){ if (q.doneAt) return false; q.p = Math.min(q.n,
 export function markQuestDone(q, now = Date.now()){ if (!q || q.doneAt) return false; q.doneAt = now; q.p = q.n; return true; }
 ```
 
-## 파트 14/29
+## 파트 15/33
 
-[파트 14/29] 파일: 3d/worklog.js (1/1)
+[파트 15/33] 파일: 3d/worklog.js (1/1)
 ```
 // 개발 일지: 이 프로젝트에서 실제로 한 작업을 캐릭터(에이전트)들이 재현해요.
 // 새 작업을 하면 맨 위 세션에 항목을 추가해 주세요.
@@ -2282,6 +2494,18 @@ export const ROLES = {
 };
 
 export const SESSIONS = [
+  {
+    date:"2026-10-23", title:"층 표시 · 바깥 손님 · 터미널 작업 동기화 · 아티팩트",
+    request:"다른 층 캐릭터는 안 보이게, 바깥 손님·택배·배달이 오게, 터미널이 일할 때 사무실도 같이 일하게 해 줘",
+    items:[
+      {who:"rakko", title:"요청 정리", plan:"층 표시, 손님, 동기화. 세 가지로 나누지.", work:["우선순위 정하는 중"], done:"배정 끝."},
+      {who:"usagi", title:"층 표시 확인", plan:"우라! (다른 층 친구가 보인다는 듯 가리킴)", work:["(1층에서 2층 친구 발견)","하아…?"], done:"야하! (이제 안 보여!)",
+        bug:"(보이는지 묻는 값이 '없음'이라 그려짐!)", fixBy:"hachiware", fix:"항상 참/거짓으로 돌려주게 고쳤어!"},
+      {who:"chiikawa", title:"정문·로비와 바깥 손님", plan:"…손님이 들어올 길, 만들게…!", work:["…로비 매트","…택배 기사님","…외부 손님"], done:"…어서 오세요…!"},
+      {who:"kurimanju", title:"배달 음식 받기", plan:"하아… 배달은 내가 받으러 갈게~", work:["로비로 가는 중~","캬~ 맛있겠다"], done:"다 같이 먹자~"},
+      {who:"shisa", title:"터미널 작업 동기화", plan:"실제 작업 소식을 받아서 보여 줄게요!", work:["상태 형식 정하기","live 브랜치","아티팩트 저장소"], done:"이제 같이 일해요!"},
+    ],
+  },
   {
     date:"2026-10-22", title:"사물 상호작용 · 버그 수정 · 보안 · 글꼴 · 접근성 · 성능",
     request:"가구를 눌러 행동하게 하고, 멈춤·중복 보상 버그를 고치고, 브라우저의 API 키를 없애고, 글꼴과 접근성, 휴대폰 성능을 다듬어 줘",
@@ -2334,9 +2558,9 @@ export const SESSIONS = [
 ];
 ```
 
-## 파트 15/29
+## 파트 16/33
 
-[파트 15/29] 파일: shared/ai-client.js (1/1)
+[파트 16/33] 파일: shared/ai-client.js (1/1)
 ```
 // AI 연결. 브라우저에는 API 키를 두지 않아요.
 // 1) claude.ai 아티팩트 안에서 열면 window.claude 샘플 기능을 써요 (키 없음, 사용자의 claude.ai 사용량).
@@ -2424,9 +2648,9 @@ export async function copyText(text){
 }
 ```
 
-## 파트 16/29
+## 파트 17/33
 
-[파트 16/29] 파일: shared/parse.js (1/1)
+[파트 17/33] 파일: shared/parse.js (1/1)
 ```
 // AI 업무 응답(@제목/@구성/@결과물/@검토 형식)을 해석하는 순수 함수들
 export const DEFAULT_SCORE = 4, DEFAULT_COMMENT = "야하!";
@@ -2512,9 +2736,9 @@ export function demoAnswer(task){
 }
 ```
 
-## 파트 17/29
+## 파트 18/33
 
-[파트 17/29] 파일: shared/storage.js (1/1)
+[파트 18/33] 파일: shared/storage.js (1/1)
 ```
 // 브라우저 저장소를 안전하게 다루는 도우미 (localStorage가 막혀 있거나 손상돼도 앱이 멈추지 않게)
 export const KEYS = {
@@ -2563,9 +2787,9 @@ export const int = (v, min, max, def) => { const n = num(v, min, max, NaN); retu
 export const str = (v, maxLen, def = "") => typeof v === "string" ? v.slice(0, maxLen) : def;
 ```
 
-## 파트 18/29
+## 파트 19/33
 
-[파트 18/29] 파일: shared/markdown.js (1/1)
+[파트 19/33] 파일: shared/markdown.js (1/1)
 ```
 // 모델 출력을 안전하게 화면에 보여 주는 작은 마크다운 변환기. 모든 글자는 먼저 이스케이프해요.
 export const esc = s => String(s).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -2587,9 +2811,9 @@ export function md(src, noteClass = "note"){
 }
 ```
 
-## 파트 19/29
+## 파트 20/33
 
-[파트 19/29] 파일: shared/activity-controller.js (1/1)
+[파트 20/33] 파일: shared/activity-controller.js (1/1)
 ```
 // 오래 걸리는 활동(업무 지시, 회의, 개발 일지 재생, 자체 회의)을 한 번에 하나만 실행하게 하는 공통 잠금
 export class ActivityController {
@@ -2612,9 +2836,9 @@ export class ActivityController {
 }
 ```
 
-## 파트 20/29
+## 파트 21/33
 
-[파트 20/29] 파일: shared/actions.js (1/1)
+[파트 21/33] 파일: shared/actions.js (1/1)
 ```
 // 2D와 3D가 같은 이름·이모지·대사를 쓰도록 모아 둔 행동 문구
 export const ACTION_TEXT = {
@@ -2647,9 +2871,117 @@ export const ACTION_TEXT = {
 export const objectActionLabel = (objName, key) => `${objName}에서 ${ACTION_TEXT[key]?.name ?? key}`;
 ```
 
-## 파트 21/29
+## 파트 22/33
 
-[파트 21/29] 파일: 2d/app.js (1/3)
+[파트 22/33] 파일: shared/live.js (1/1)
+```
+// 터미널(Claude Code)에서 실제로 하는 작업을 사무실 화면에 보여 주는 동기화.
+// 작업 상태는 두 곳 중 하나에서 읽어요 (쓰는 쪽은 tools/live.mjs와 Claude가 맡아요).
+//  1) claude.ai 아티팩트 안: 아티팩트 db의 live/status 문서 (실시간)
+//  2) 그 밖(GitHub Pages 등): 저장소 live 브랜치의 status.json을 GitHub API로 75초마다 확인
+// 상태 형식: {state:"working"|"idle", title, request, steps:[{who, title, status:"todo"|"doing"|"done"}], updatedAt}
+import { isObj, str } from "./storage.js";
+
+const REPO = "onyoupado/Chiikawa-office";
+const API = `https://api.github.com/repos/${REPO}/contents/status.json?ref=live`;
+const POLL_MS = 75000, STALE_MS = 45 * 60 * 1000;      // 45분 넘게 소식이 없으면 끝난 것으로 봐요
+const WHO = ["rakko", "chiikawa", "hachiware", "usagi", "momonga", "kurimanju", "shisa", "kani"];
+
+// 바깥에서 온 값이라 형식을 검사해요
+export function normalizeLive(raw, now = Date.now()){
+  if (!isObj(raw)) return null;
+  const at = Date.parse(raw.updatedAt);
+  const stale = !Number.isFinite(at) || now - at > STALE_MS;
+  const steps = Array.isArray(raw.steps) ? raw.steps.slice(0, 12).filter(isObj).map(s => ({
+    who: WHO.includes(s.who) ? s.who : "rakko", title: str(s.title, 40, "작업"), status: ["todo", "doing", "done"].includes(s.status) ? s.status : "todo",
+  })) : [];
+  return { state: raw.state === "working" && !stale ? "working" : "idle", title: str(raw.title, 60, ""), request: str(raw.request, 200, ""), steps, updatedAt: Number.isFinite(at) ? at : 0, stale };
+}
+
+export function startLiveSync(onStatus){
+  let last = "", stopped = false, timer = null;
+  const emit = raw => { const st = normalizeLive(raw); const key = JSON.stringify(st); if (key !== last){ last = key; try { onStatus(st); } catch (e) {} } };
+  (async () => {
+    // 아티팩트 db가 있으면 그걸로 (없으면 null)
+    let db = null;
+    try { db = globalThis.claude?.use ? await globalThis.claude.use("db") : null; } catch (e) { db = null; }
+    if (stopped) return;
+    if (db){
+      try { db.doc("live/status").onSnapshot(snap => emit(snap?.data ? snap.data() : snap), () => {}); return; } catch (e) {}
+    }
+    const poll = async () => {
+      if (stopped) return;
+      if (!document.hidden){
+        try {
+          const res = await fetch(API, { headers: { accept: "application/vnd.github.raw+json" }, cache: "no-store" });
+          if (res.ok) emit(await res.json());
+        } catch (e) {}            // 막혀 있거나(아티팩트 CSP 등) 오프라인이면 조용히 넘어가요
+      }
+      timer = setTimeout(poll, POLL_MS);
+    };
+    poll();
+  })();
+  return () => { stopped = true; clearTimeout(timer); };
+}
+```
+
+## 파트 23/33
+
+[파트 23/33] 파일: tools/live.mjs (1/1)
+```
+#!/usr/bin/env node
+// 터미널 작업 상태를 사무실 화면으로 보내요. 저장소의 live 브랜치에 status.json 하나만 올려요 (main 기록과 Pages 배포는 건드리지 않아요).
+//   node tools/live.mjs start "제목" "요청 한 줄"            작업 시작
+//   node tools/live.mjs step hachiware "화면 고치기" doing    단계 추가·변경 (todo|doing|done)
+//   node tools/live.mjs done                                작업 끝
+//   node tools/live.mjs show                                현재 상태 보기
+//   --no-push 를 붙이면 파일만 바꾸고 올리지 않아요.
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const FILE = join(ROOT, "live", "status.json");
+const WHO = ["rakko", "chiikawa", "hachiware", "usagi", "momonga", "kurimanju", "shisa", "kani"];
+const args = process.argv.slice(2).filter(a => a !== "--no-push"), push = !process.argv.includes("--no-push");
+const git = (...a) => execFileSync("git", a, { cwd: ROOT, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+const load = () => { try { return JSON.parse(readFileSync(FILE, "utf8")); } catch (e) { return { state: "idle", title: "", request: "", steps: [] }; } };
+
+const st = load(), [cmd, ...rest] = args;
+if (cmd === "start"){ Object.assign(st, { state: "working", title: (rest[0] || "작업").slice(0, 60), request: (rest[1] || "").slice(0, 200), steps: [] }); }
+else if (cmd === "step"){
+  const [who, title, status = "doing"] = rest;
+  if (!WHO.includes(who) || !title || !["todo", "doing", "done"].includes(status)) { console.error(`사용법: step <${WHO.join("|")}> "제목" [todo|doing|done]`); process.exit(1); }
+  const s = st.steps.find(x => x.title === title);
+  if (s) Object.assign(s, { who, status }); else st.steps.push({ who, title: title.slice(0, 40), status });
+  st.state = "working";
+}
+else if (cmd === "done"){ st.state = "idle"; st.steps.forEach(s => { s.status = "done"; }); }
+else if (cmd === "show"){ console.log(JSON.stringify(st, null, 2)); process.exit(0); }
+else { console.error("사용법: start | step | done | show (파일 맨 위 설명 참고)"); process.exit(1); }
+st.updatedAt = new Date().toISOString();
+mkdirSync(dirname(FILE), { recursive: true });
+writeFileSync(FILE, JSON.stringify(st, null, 2) + "\n");
+console.log(`${st.state === "working" ? "🛠" : "✅"} ${st.title} · ${st.steps.map(s => `${s.who}:${s.status}`).join(" ")}`);
+
+if (push){
+  // live 브랜치에 status.json만 담은 커밋을 올려요 (작업 트리·main은 그대로)
+  const blob = git("hash-object", "-w", FILE);
+  const tree = execFileSync("git", ["mktree"], { cwd: ROOT, input: `100644 blob ${blob}\tstatus.json\n`, encoding: "utf8" }).trim();
+  let parent = ""; try { git("fetch", "-q", "origin", "live"); parent = git("rev-parse", "FETCH_HEAD"); } catch (e) {}
+  const commit = git("commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", `live: ${st.state} ${st.title}`.slice(0, 72));
+  for (let i = 0, wait = 2000; ; i++, wait *= 2){
+    try { git("push", "-q", "origin", `${commit}:refs/heads/live`); break; }
+    catch (e) { if (i >= 3) { console.error("live 브랜치에 올리지 못했어요:", e.message.split("\n")[0]); process.exit(1); } execFileSync("sleep", [String(wait / 1000)]); }
+  }
+  console.log("live 브랜치에 올렸어요");
+}
+```
+
+## 파트 24/33
+
+[파트 24/33] 파일: 2d/app.js (1/4)
 ```
 // 치이카와 오피스 2D: 업무를 지시하면 팀이 회의실에 모이고, 자료실·탕비실·자리를 오가며 일을 끝내요.
 import { esc, md } from "../shared/markdown.js";
@@ -2658,6 +2990,7 @@ import { parseTaskAnswer as parse, finalizeAnswer, buildTaskPrompt, demoAnswer, 
 import { initAI, setAccessCode, aiStatus, isConnected, askAI, ERRMSG, copyText } from "../shared/ai-client.js";
 import { ACTION_TEXT, objectActionLabel } from "../shared/actions.js";
 import { createRegistry } from "../3d/interactions.js";
+import { startLiveSync } from "../shared/live.js";
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
 const $ = id => document.getElementById(id);
@@ -2772,6 +3105,7 @@ function walls(fl, r, label){
 for (const fl of [1,2,3]){
   for (const [k,r] of Object.entries(FLOORS[fl].rooms)){ add(fl, `room r-${k}`, r.x,r.y,r.w,r.h); walls(fl, r, r.name); }
   add(fl, "corr-label", 360, 308, null, null, ["", "복 도", "기 숙 사 복 도", "3 층 · 취 미 층"][fl]);
+  if (fl === 1){ add(1, "entrance", 982, 290, 18, 60); add(1, "flab entlab", 912, 326, null, null, "정문 →"); }   // 1층 복도 오른쪽 끝이 정문
 }
 
 /* ---------- furniture helpers ---------- */
@@ -2921,14 +3255,14 @@ const SEATS = [];
     const t = block(3, x,430,90,50, 30, "#fff", "var(--wall)"); deco(t, "mug", 20,30,10,30); deco(t, "plate", 50,20,30,60, 0, "<i></i>");
     stand(3, "pole", x+42,458,6,110, "", 0);
     const u = add(3, "parasol", x-5,415,100,80); lift(u, 112);
+```
+
+## 파트 25/33
+
+[파트 25/33] 파일: 2d/app.js (2/4)
+```
     for (const dx of [-16,96]) block(3, x+dx,445,22,22, 18, "var(--steel)");
   }
-```
-
-## 파트 22/29
-
-[파트 22/29] 파일: 2d/app.js (2/3)
-```
   for (const x of [520,620]){ block(3, x,540,70,50, 14, "#f4f1ea", "var(--wall)"); lift(block(3, x,580,70,14, 30, "#ffb2c4", "var(--wall)"), 0); }
   const g = block(3, 720,395,70,40, 44, "#3a3f55", "#1d2030"); deco(g, "grill", 8,12,84,76, 0, "<i></i><i></i>");
   stand(3, "smoke", 735,400,40,50, "", 60);
@@ -2985,7 +3319,7 @@ const SPEED = REDUCED ? 5000 : 170;
 let lastT = performance.now();
 function frame(t){
   const dt = Math.min(.05, (t - lastT) / 1000); lastT = t;
-  for (const c of ALL){
+  for (const c of [...ALL, ...VIS]){
     if (!c.path.length) continue;
     const g = c.path[0], dx = g.x - c.x, dy = g.y - c.y, d = Math.hypot(dx, dy), step = SPEED * dt;
     if (Math.abs(dx) > 1) c.el.classList.toggle("left", dx < 0);
@@ -3188,13 +3522,24 @@ $("pasteGo").onclick = () => {
     log("usagi", `붙여 넣은 답 정리 · ★${a.score}`);
   } catch (e) { log("rakko", `${ERRMSG[e?.code] || "정리하지 못했어요"}. @결과물 아래에 본문이 있는지 확인해 주세요.`); }
 };
-$("clearTasks").onclick = () => {
+// 확인 상자: 브라우저 confirm() 대신 페이지 안 상자 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
+function ask(msg, okText = "네"){
+  return new Promise(res => {
+    const d = $("askBox"); $("askMsg").textContent = msg; $("askOk").textContent = okText; d.hidden = false;
+    const back = document.activeElement;
+    const done = v => { d.hidden = true; $("askOk").onclick = $("askNo").onclick = null; d.onkeydown = null; back?.focus?.(); res(v); };
+    $("askOk").onclick = () => done(true); $("askNo").onclick = () => done(false);
+    d.onkeydown = e => { if (e.key === "Escape"){ e.stopPropagation(); done(false); } };
+    $("askNo").focus();
+  });
+}
+$("clearTasks").onclick = async () => {
   if (busy) return log("rakko", "업무 처리 중에는 지울 수 없어요");
-  if (!confirm("2D 사무실의 업무 기록을 모두 지울까요?")) return;
+  if (!await ask("2D 사무실의 업무 기록을 모두 지울까요?")) return;
   tasks = [EXAMPLE]; selected = EXAMPLE.id; remove(KEY); renderBoard(); renderResult(EXAMPLE); log("rakko", "업무 기록을 지웠어요");
 };
-$("clearAll").onclick = () => {
-  if (!confirm("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황·대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
+$("clearAll").onclick = async () => {
+  if (!await ask("이 브라우저에 저장된 치이카와 오피스 기록(2D 업무 기록, 3D 진행 상황·대화, 화질 설정, 예전 API 키)을 모두 지울까요? 되돌릴 수 없어요.")) return;
   clearAllLocal(); location.reload();
 };
 
@@ -3228,6 +3573,12 @@ document.addEventListener("click", e => {
 });
 $("copy").onclick = async () => {
   const t = tasks.find(x => x.id === selected); if (!t?.body) return;
+```
+
+## 파트 26/33
+
+[파트 26/33] 파일: 2d/app.js (3/4)
+```
   try { await navigator.clipboard.writeText(t.body); $("copy").textContent = "복사됨"; }
   catch(e){ const r = document.createRange(); r.selectNodeContents($("rDoc")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $("copy").textContent = "선택됨"; }
   setTimeout(() => $("copy").textContent = "복사", 1500);
@@ -3237,12 +3588,6 @@ $("copy").onclick = async () => {
 // 단계 신호(p1 구성 · p2 결과물 · p3 검토 · done 끝). 성공해도 실패해도 모든 신호를 반드시 풀어서 캐릭터 대본이 멈춰 있지 않게 해요.
 function gate(){ let r; const p = new Promise(x => r = x); return {p, r}; }
 function newJob(){ return {p1:gate(), p2:gate(), p3:gate(), done:gate(), failed:false, skipped:false, streamDone:false, last:null, text:""}; }
-```
-
-## 파트 23/29
-
-[파트 23/29] 파일: 2d/app.js (3/3)
-```
 function failJob(j){ j.failed = true; [j.p1,j.p2,j.p3,j.done].forEach(g => g.r(false)); }
 function passJob(j){ [j.p1,j.p2,j.p3,j.done].forEach(g => g.r(true)); }
 
@@ -3392,6 +3737,97 @@ $("stop").onclick = () => {
   else if (!j.skipped){ j.skipped = true; j.failed = true; passJob(j); ALL.forEach(c => walk(c, c.home)); log("rakko", "남은 연출을 건너뛰었어요"); }
 };
 
+
+/* ---------- visitors: 정문으로 들어오는 바깥 손님 (택배·배달·외부 미팅) ---------- */
+// 1층 복도 오른쪽 끝 정문으로 들어와요. 업무를 처리하는 중이 아니면 한가한 친구가 마중 나가요.
+const VIS = [];
+const VSVG = {
+  courier:["택배 기사님", "#c9a07a", "#2b7de9", `<rect x="58" y="62" width="34" height="28" fill="#d9a86c" stroke="#33364a" stroke-width="2.5"/>`],
+  rider:["배달 라이더", "#ffb38a", "#ff6b4a", `<rect x="58" y="66" width="32" height="22" fill="#fff3f6" stroke="#33364a" stroke-width="2.5"/><rect x="58" y="72" width="32" height="5" fill="#ff6b4a"/>`],
+  guest:["외부 손님", "#bfe3d6", "#6f5cc4", `<rect x="62" y="66" width="28" height="22" fill="#3a3f55" stroke="#33364a" stroke-width="2.5"/>`],
+};
+const ENTRY = {x:995, y:320}, HALL = {x:925, y:320};
+function spawn2d(kind){
+  const [name, body, cap, item] = VSVG[kind];
+  const v = {id:"v" + Date.now(), kind, name, x:ENTRY.x, y:ENTRY.y, floor:1, path:[], resolve:null, bubT:0};
+  v.el = document.createElement("div"); v.el.className = "mate visitor";
+  v.el.innerHTML = `<div class="body"><svg viewBox="0 0 100 100"><ellipse cx="50" cy="70" rx="30" ry="26" fill="${body}" stroke="#33364a" stroke-width="2.5"/><ellipse cx="50" cy="42" rx="27" ry="24" fill="#fff" stroke="#33364a" stroke-width="2.5"/><path d="M24 34 Q50 6 76 34 Z" fill="${cap}" stroke="#33364a" stroke-width="2.5"/><circle cx="41" cy="44" r="3" fill="#33364a"/><circle cx="59" cy="44" r="3" fill="#33364a"/>${item}</svg></div><span class="nm"></span>`;
+  v.el.querySelector(".nm").textContent = name;
+  v.bub = document.createElement("div"); v.bub.className = "bub";
+  MAPS[1].append(v.el, v.bub); place(v); VIS.push(v); return v;
+}
+async function leave2d(v, line){
+  if (line) say(v, line, 2200);
+  await walk(v, ENTRY); v.el.classList.add("gone");
+  await sleep(500); v.el.remove(); v.bub.remove(); const k = VIS.indexOf(v); if (k >= 0) VIS.splice(k, 1);
+}
+// 마중 나갈 친구: 1층에서 일이 없는 친구 (업무 중인 팀은 빼요)
+const host2d = prefer => { const free = ALL.filter(c => !c.job && !c.away && c.floor === 1); return (prefer && free.find(c => c.id === prefer)) || free.sort((a, b) => Math.abs(a.x - HALL.x) - Math.abs(b.x - HALL.x))[0] || null; };
+async function visit2d(kind){
+  if (VIS.length || document.hidden) return;
+  const v = spawn2d(kind);
+  log("rakko", {courier:"📦 택배 기사님이 정문으로 들어왔어요", rider:"🛵 배달 음식이 도착했어요", guest:"🤝 외부 손님이 미팅하러 왔어요"}[kind]);
+  await walk(v, HALL); say(v, {courier:"택배 왔어요~!", rider:"배달 왔습니다~!", guest:"안녕하세요, 미팅하러 왔어요!"}[kind], 2600);
+  const busyNow = busy && kind === "guest";                                 // 업무 중엔 회의실이 차 있어서 손님 미팅은 다음에
+  const c = busyNow ? null : host2d(kind === "guest" ? "rakko" : kind === "rider" ? "kurimanju" : null);
+  if (!c){ await sleep(2500); return leave2d(v, kind === "guest" ? "바쁘신가 봐요. 다음에 올게요!" : "문 앞에 두고 갈게요~"); }
+  const ok = claim(c);
+  if (!await walk(c, {x:HALL.x - 40, y:HALL.y}) || !ok()){ return leave2d(v, "다음에 올게요~"); }
+  if (kind === "guest"){
+    say(c, "어서 오세요. 회의실로 안내할게요.", 2400); await sleep(1500);
+    await Promise.all([walk(c, SPOT.meet[0]), walk(v, SPOT.meet[1])]);
+    if (ok()){
+      for (const [w, t] of [[v, "같이 하고 싶은 일이 있어서 왔어요."], [c, "좋아요, 자세히 들어 볼게요."], [v, "다음 달 초면 좋겠어요."], [c, "정리해서 연락드릴게요."]]){ say(w, t, 2600); await sleep(2600); if (!ok()) break; }
+      log("rakko", "🤝 외부 손님과 미팅을 마쳤어요");
+    }
+    await Promise.all([leave2d(v, "감사합니다! 또 올게요~"), ok() ? walk(c, c.home) : null]);
+  } else {
+    say(c, kind === "rider" ? "캬~ 맛있겠다!" : "감사합니다!", 2000); await sleep(1600);
+    log(c.id, kind === "rider" ? "🍱 배달 음식을 받았어요" : "📦 택배를 받았어요");
+    leave2d(v, kind === "rider" ? "맛있게 드세요!" : "좋은 하루 되세요!");
+    if (ok()) await walk(c, kind === "rider" ? SPOT.snack[0] : c.home);
+    if (ok() && kind === "rider"){ say(c, "다들 와서 먹어~", 2200); await sleep(3000); await walk(c, c.home); }
+  }
+  if (ok()) c.job = null;
+}
+setInterval(() => { if (!busy && Math.random() < .5) visit2d(rand(["courier", "rider", "guest"])); }, 150000);
+setTimeout(() => visit2d("courier"), 45000);
+
+/* ---------- live: 터미널의 실제 작업과 동기화 ---------- */
+// Claude Code가 실제로 일하는 동안 맡은 캐릭터가 자리에서 그 일을 하고, 위쪽 띠에 지금 하는 일이 보여요.
+const LIVE2 = {status:null, working:new Map(), wasOn:false};
+function liveApply2d(st){
+  LIVE2.status = st;
+  const on = st?.state === "working", bar = $("livebar");
+  bar.hidden = !on;
+  if (on){
+    const done = st.steps.filter(s => s.status === "done").length;
+    bar.textContent = `🛠 터미널에서 실제 작업 중: ${st.title || "작업"}${st.steps.length ? ` (${done}/${st.steps.length})` : ""}` +
+      (st.steps.length ? " · " + st.steps.map(s => `${M[s.who].name} ${s.status === "done" ? "✓" : s.status === "doing" ? "…" : "·"} ${s.title}`).join(" / ") : "");
+  }
+  if (on !== LIVE2.wasOn){ log("rakko", on ? `🛠 터미널에서 실제 작업을 시작했어요: ${st.title}` : "✅ 터미널의 실제 작업이 끝났어요"); LIVE2.wasOn = on; }
+  const doing = new Map(on ? st.steps.filter(s => s.status === "doing").map(s => [s.who, s.title]) : []);
+  for (const [id, tag] of LIVE2.working) if (!doing.has(id)){
+    const c = M[id]; LIVE2.working.delete(id);
+    if (c.job === tag){ if (SPOT.desk[id]) setWork(c, false, "완료!"); say(c, rand(["끝!","다 했다~","야하!"]), 2000); c.job = null; }
+  }
+  if (busy) return;                                                       // 업무 지시를 처리하는 중이면 그게 먼저예요
+  for (const [id, title] of doing){
+    const c = M[id];
+    if (LIVE2.working.has(id)){ if (LIVE2.working.get(id) === c.job){ if (SPOT.desk[id]) screen(id, `[실제 작업]\n${title}`); continue; } LIVE2.working.delete(id); }   // 다른 일로 불려 갔으면 다시 자리로
+    if (c.away) continue;
+    const ok = claim(c); LIVE2.working.set(id, c.job);
+    (async () => {
+      if (c.floor !== 1 && !await ride(c, ok, 1)) return;
+      if (!await walk(c, SPOT.desk[id] || c.home) || !ok()) return;
+      say(c, title.length > 18 ? title.slice(0, 17) + "…" : title, 2600);
+      if (SPOT.desk[id]){ setWork(c, true, "실제 작업 중"); screen(id, `[실제 작업]\n${title}`); }
+    })();
+  }
+}
+startLiveSync(liveApply2d);
+setInterval(() => { if (LIVE2.status) liveApply2d(LIVE2.status); }, 10000);
+
 /* ---------- objects you can use (3D와 같은 이름·행동) ---------- */
 // 지도 위 가구에 투명한 버튼(.hot, data-interactive-id)을 얹어요. 마우스·Enter·Space 모두 같은 useObject()로 가요.
 const registry = createRegistry();
@@ -3435,6 +3871,12 @@ hot("seats", "영화관 좌석", 3, [560,150,360,140,20], ["movie"], () => rand(
 hot("lounger1", "선베드 1", 3, [520,540,70,50,14], ["sunbath"], TERRACE.lounger[0]);
 hot("lounger2", "선베드 2", 3, [620,540,70,50,14], ["sunbath"], TERRACE.lounger[1]);
 hot("bbq", "바비큐 그릴", 3, [720,395,70,40,44], ["bbq"], TERRACE.bbq);
+```
+
+## 파트 27/33
+
+[파트 27/33] 파일: 2d/app.js (4/4)
+```
 hot("terrace", "테라스 테이블", 3, [270,430,280,50,30], ["bbq"], () => rand(TERRACE.table));
 hot("view", "전망대", 3, [860,540,70,60,16], ["sightsee"], TERRACE.view);
 hot("flowers", "꽃밭", 3, [190,600,710,16,16], ["sightsee"], TERRACE.flowers);
@@ -3531,16 +3973,16 @@ $("chips").addEventListener("click", e => { const c = e.target.closest(".chip");
 
 renderBoard();
 const sel = tasks.find(t => t.id === selected); if (sel) renderResult(sel);
-window.__office2d = {tasks, M, ALL, registry, useObject, pick, get busy(){ return busy; }, get picked(){ return picked; }};   // 시험용
+window.__office2d = {tasks, M, ALL, registry, VIS, visit2d, liveApply2d, LIVE2, useObject, pick, get busy(){ return busy; }, get picked(){ return picked; }};   // 시험용
 log("rakko", "출근 완료. 업무를 기다리는 중");
 setTimeout(() => say(M.hachiware, "오늘도 힘내자~!", 2600), 600);
 setTimeout(() => { if (!busy && !M.usagi.job) wander(M.usagi); }, 1800);
 pump();
 ```
 
-## 파트 24/29
+## 파트 28/33
 
-[파트 24/29] 파일: 3d.html (1/2)
+[파트 28/33] 파일: 3d.html (1/2)
 ```
 <!doctype html>
 <html lang="ko">
@@ -3676,6 +4118,11 @@ select.pill{appearance:auto;padding:2px 8px}
 .askwrap{position:fixed;inset:0;z-index:50;background:rgba(20,22,40,.45);display:grid;place-items:center;padding:16px}
 .ask{background:var(--panel);color:var(--ink);border:2px solid var(--ink);border-radius:16px;padding:16px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px}
 .ask p{margin:0;line-height:1.6}.ask .row{justify-content:flex-end}
+.livepill{background:#fff0f5!important;border-color:var(--pink)!important;white-space:normal;max-width:min(520px,calc(100vw - 60px))}
+.livesteps{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.livesteps li{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:.85rem;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:4px 8px}
+.livesteps li.doing{border-color:var(--pink)}.livesteps li.done{opacity:.7}.livesteps li.done small{color:var(--ok)}
+.livesteps b{font-size:.78rem}.livesteps small{font-size:.72rem;color:var(--muted)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .privacy{font-size:.82rem;color:var(--ink);background:var(--bg);border-radius:12px;padding:8px 12px;margin-top:8px}
 .privacy ul{margin:4px 0;padding-left:18px}
@@ -3712,6 +4159,7 @@ select.pill{appearance:auto;padding:2px 8px}
   <div class="view" id="view">
     <div class="hud">
       <div class="row"><span class="pill clock" id="clock">☀️ 08:30</span><button type="button" class="pill" id="speed">시간 ×1</button><span class="pill" id="coins">🪙 0</span></div>
+      <div class="row"><span class="pill livepill" id="livePill" role="status" aria-live="polite" hidden></span></div>
       <div class="row" id="floors" role="group" aria-label="층 선택">
         <button type="button" class="pill" data-f="1" aria-pressed="true">1F 사무실<span id="n1"></span></button>
         <button type="button" class="pill" data-f="2" aria-pressed="false">2F 기숙사<span id="n2"></span></button>
@@ -3726,6 +4174,12 @@ select.pill{appearance:auto;padding:2px 8px}
       <button type="button" class="pill" id="camReset">처음 시점</button>
       <button type="button" class="pill" id="qualityBtn">화질</button>
       <button type="button" class="pill" id="shadowBtn">그림자</button>
+```
+
+## 파트 29/33
+
+[파트 29/33] 파일: 3d.html (2/2)
+```
       <button type="button" class="pill" id="soundBtn">🔇 소리</button>
       <button type="button" class="pill" id="photoBtn">📷 사진</button>
       <button type="button" class="pill" id="ctrlBtn" aria-pressed="true" title="끄면 화면 위에서 페이지를 스크롤할 수 있어요">3D 조작 켬</button>
@@ -3736,12 +4190,6 @@ select.pill{appearance:auto;padding:2px 8px}
     <div class="tip" id="tip" hidden></div>
     <div class="omenu" id="omenu" role="dialog" aria-label="사물 행동 고르기" hidden></div>
     <div class="dev" id="devStats" hidden></div>
-```
-
-## 파트 25/29
-
-[파트 25/29] 파일: 3d.html (2/2)
-```
     <div class="help">한 손가락: 회전 · 두 손가락: 확대/이동 · 캐릭터를 고르고 사물이나 바닥 누르기</div>
   </div>
 
@@ -3766,6 +4214,7 @@ select.pill{appearance:auto;padding:2px 8px}
     <p class="note" style="margin-top:0">캐릭터 한 명 한 명이 역할을 맡은 에이전트예요. 실제로 한 개발 작업을 다시 보거나, 주제를 주고 회의를 열면 회의실에 모여 의견을 나누고 할 일을 정한 뒤 자리로 가서 일해요. 업무 시간에는 가끔 알아서 짧은 아침 회의도 해요.</p>
     <div class="row"><select class="field" id="logSel" aria-label="개발 일지" style="flex:1 1 220px"></select><button class="btn ghost" type="button" id="replayBtn">작업 다시 보기</button></div>
     <form class="cmd" id="meetForm" style="margin-top:8px"><input id="meetIn" autocomplete="off" placeholder="회의 주제. 예: 사무실 이벤트를 더 재밌게 만들기" aria-label="회의 주제"><button class="btn" type="submit">회의 열기</button></form>
+    <div class="sub">터미널 실제 작업</div><div id="liveBox" class="livebox"></div>
     <div class="board" id="board"></div>
     <div class="minutes" id="minutes" aria-live="polite"><p class="note">회의록이 여기에 적혀요.</p></div>
   </section>
@@ -3821,9 +4270,9 @@ select.pill{appearance:auto;padding:2px 8px}
 </html>
 ```
 
-## 파트 26/29
+## 파트 30/33
 
-[파트 26/29] 파일: index.html (1/1)
+[파트 30/33] 파일: index.html (1/1)
 ```
 <!doctype html>
 <html lang="ko">
@@ -3847,6 +4296,8 @@ select.pill{appearance:auto;padding:2px 8px}
   </header>
 
   <div class="status"><span class="lbl">지금 하는 일</span><span class="now" id="now" role="status" aria-live="polite">대기 중이에요</span><div class="bar" id="barBox" role="progressbar" aria-label="업무 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar"></i></div><span class="clock" id="clock"></span></div>
+
+  <div class="livebar" id="livebar" role="status" aria-live="polite" hidden></div>
 
   <div class="mapwrap" id="mapwrap">
     <div class="floors" role="group" aria-label="층 선택">
@@ -3925,6 +4376,9 @@ select.pill{appearance:auto;padding:2px 8px}
       </section>
     </div>
   </div>
+  <div class="askwrap" id="askBox" role="alertdialog" aria-modal="true" aria-labelledby="askMsg" hidden>
+    <div class="ask"><p id="askMsg"></p><div class="row"><button class="btn ghost" type="button" id="askNo">아니요</button><button class="btn" type="button" id="askOk">네</button></div></div>
+  </div>
   <footer>팬이 만든 비공식 프로젝트예요. 치이카와 캐릭터의 권리는 원작자 나가노에게 있어요.</footer>
 </div>
 
@@ -3934,9 +4388,9 @@ select.pill{appearance:auto;padding:2px 8px}
 </html>
 ```
 
-## 파트 27/29
+## 파트 31/33
 
-[파트 27/29] 파일: 2d/styles.css (1/2)
+[파트 31/33] 파일: 2d/styles.css (1/2)
 ```
 /* 치이카와 오피스 2D 스타일 */
 :root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -4106,9 +4560,9 @@ h1 small{display:block;font-family:var(--font-ui);font-weight:400;font-size:.9re
 @keyframes blink{50%{opacity:0}}
 ```
 
-## 파트 28/29
+## 파트 32/33
 
-[파트 28/29] 파일: 2d/styles.css (2/2)
+[파트 32/33] 파일: 2d/styles.css (2/2)
 ```
 .tv{background:#1f2337;border:.4cqw solid var(--wall);color:#9fe3c0;font-family:var(--font-mono);font-size:.9cqw;display:grid;place-items:center;transform:rotateX(-90deg)}
 .sign{font-family:var(--font-ui);font-weight:700;font-size:1.6cqw;color:var(--blue);text-align:center;transform:rotateX(-90deg)}
@@ -4222,11 +4676,18 @@ footer{font-size:.75rem;color:var(--muted);text-align:center}
 .aibox .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .aibox input,.pastebox textarea{font-family:var(--font-ui);font-size:1rem;min-height:var(--tap);border:2px solid var(--line);border-radius:10px;padding:5px 9px;background:var(--bg);color:var(--ink);min-width:0;flex:1}
 .doc{font-family:var(--font-ui)}
+.askwrap{position:fixed;inset:0;z-index:50;background:rgba(20,22,40,.45);display:grid;place-items:center;padding:16px}
+.ask{background:var(--panel);color:var(--ink);border:2px solid var(--ink);border-radius:16px;padding:16px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px}
+.ask p{margin:0;line-height:1.6}.ask .row{justify-content:flex-end;margin-top:0}
+.entrance{position:absolute;background:linear-gradient(90deg,rgba(150,200,240,.55),rgba(190,225,255,.35));border:.3cqw solid var(--steel);border-radius:.4cqw}
+.flab.entlab{font-size:1.6cqw;color:var(--blue)}
+.mate.visitor .nm{border-color:var(--blue)}
+.livebar{background:#fff0f5;color:#2d3149;border:2px solid var(--pink);border-radius:14px;padding:8px 14px;font-size:.88rem;line-height:1.5}
 ```
 
-## 파트 29/29
+## 파트 33/33
 
-[파트 29/29] 파일: server/proxy.mjs (1/1)
+[파트 33/33] 파일: server/proxy.mjs (1/1)
 ```
 // 치이카와 오피스 서버 프록시 예시. 브라우저에는 API 키를 두지 않고, 이 서버만 키를 가져요.
 // 공개 무인증 프록시가 되지 않도록: 접속 코드(Bearer) 필수, 모델 고정, 크기·토큰 제한, 사용자·IP별 속도 제한, 하루 비용 상한, 시간 초과.

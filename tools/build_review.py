@@ -22,6 +22,8 @@ FILES = [
     ("shared/markdown.js", "모델 출력용 안전한 마크다운"),
     ("shared/activity-controller.js", "긴 활동 공통 잠금"),
     ("shared/actions.js", "2D·3D 공통 행동 문구"),
+    ("shared/live.js", "터미널 실제 작업 동기화"),
+    ("tools/live.mjs", "작업 상태를 live 브랜치에 올리는 도구"),
     ("2d/app.js", "2D 버전 로직 (업무 파이프라인, 사물 상호작용)"),
     ("3d.html", "3D 화면 구조와 CSS"),
     ("index.html", "2D 화면 구조"),

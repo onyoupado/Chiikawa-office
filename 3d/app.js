@@ -14,6 +14,7 @@ import { WORLD_VERSION, sanitizeWorld } from "./persistence.js";
 import { createRegistry } from "./interactions.js";
 import { ACT_WORDS, findAct, parseCommand } from "./commands.js";
 import { questMatches, advanceQuest, markQuestDone } from "./quests.js";
+import { startLiveSync } from "../shared/live.js";
 
 purgeSecrets();   // 예전 버전이 남긴 API 키·모델 값을 지워요
 // 확인 상자: 브라우저 confirm() 대신 페이지 안 상자를 써요 (claude.ai 아티팩트에서는 confirm()이 막혀 있어서)
@@ -512,7 +513,9 @@ async function walkTo(c, p, tag = moveTag(c)){
 
 /* ================= view / floors / camera ================= */
 let viewFloor = 1;
-const visibleChar = c => viewFloor === 0 || c.floor === viewFloor || (c.ride && (c.ride.e.f0 === viewFloor || c.ride.e.f1 === viewFloor));
+// 지금 보는 층에 있는 캐릭터만 보여요 (건물 전체 보기는 모두, 에스컬레이터를 타는 중이면 출발·도착 층 모두). 항상 true/false로 돌려줘요:
+// three.js는 visible이 정확히 false일 때만 숨기기 때문에 undefined가 섞이면 다른 층 캐릭터가 그려져요.
+const visibleChar = c => viewFloor === 0 || c.floor === viewFloor || !!(c.ride && (c.ride.e.f0 === viewFloor || c.ride.e.f1 === viewFloor));
 function applyView(){
   for (const f of [1, 2, 3]){ G[f].visible = viewFloor === 0 || viewFloor === f; LABELS[f].forEach(o => o.visible = viewFloor === f); }
   for (const e of ESC) e.group.visible = viewFloor === 0 || viewFloor === e.f0 || viewFloor === e.f1;
@@ -974,10 +977,90 @@ const hideToast = () => { $("toast").hidden = true; };   // 버튼 행동(eventA
 function endEvent(expected, msg, coins = 0){
   if (eventActive !== expected) return false;
   eventActive = null;
+  eventVisitors.forEach(v => visitorLeave(v)); eventVisitors = [];      // 이벤트가 끝나면 남은 손님은 정문으로 나가요
   eventObjs.forEach(o => { if (o.userData.interactiveId) unregisterObj(o.userData.interactiveId); disposeObject(o); }); eventObjs = []; bobObj = null;
   hideToast(); if (msg) log(msg); if (coins) addCoins(coins); emit("event");
   return true;
 }
+/* ================= visitors: 정문으로 들어오는 바깥 손님 ================= */
+// 택배 기사·배달 라이더·외부 손님이 인도 → 정문 → 1층 로비로 걸어 들어와요. 캐릭터가 마중 나가서 받고, 손님은 다시 정문으로 나가요.
+const LOBBY = {x:1095, y:598}, RECEPTION = {x:1052, y:588}, DOOR_OUT = {x:1095, y:668};
+label(1, "로비 · 정문", 1095, 628, 4); plane(1, 1045, 600, 100, 40, "#cfe0f3", .9);      // 정문 앞 매트
+box(1, 1000, 545, 26, 60, 34, "#e8d2b4");                                                 // 안내 데스크
+const VISITOR = {
+  courier:{name:"택배 기사님", body:"#c9a07a", cap:"#2b7de9", item:"box", from:() => ({x:rand([-420, 1650]), y:735})},
+  rider:{name:"배달 라이더", body:"#ffb38a", cap:"#ff6b4a", item:"food", from:() => ({x:rand([-420, 1650]), y:735})},
+  guest:{name:"외부 손님", body:"#bfe3d6", cap:"#6f5cc4", item:"bag", from:() => ({x:780, y:742})},     // 버스 정류장에서 내려요
+};
+const visitors = [];
+function visitorTexture(kind){
+  const K = VISITOR[kind], cv = document.createElement("canvas"); cv.width = 128; cv.height = 150;
+  const g = cv.getContext("2d"), L = "#33364a";
+  g.lineWidth = 4; g.strokeStyle = L;
+  g.fillStyle = K.body; g.beginPath(); g.ellipse(64, 104, 40, 40, 0, 0, 7); g.fill(); g.stroke();                  // 몸
+  g.fillStyle = "#fff"; g.beginPath(); g.ellipse(64, 62, 36, 32, 0, 0, 7); g.fill(); g.stroke();                   // 얼굴
+  g.fillStyle = K.cap; g.beginPath(); g.ellipse(64, 40, 34, 16, 0, Math.PI, 0); g.fill(); g.stroke();             // 모자
+  g.fillRect(64, 36, 40, 8);
+  g.fillStyle = L; g.beginPath(); g.arc(52, 64, 4, 0, 7); g.arc(76, 64, 4, 0, 7); g.fill();                       // 눈
+  g.fillStyle = "rgba(255,143,177,.7)"; g.beginPath(); g.ellipse(40, 74, 7, 4, 0, 0, 7); g.ellipse(88, 74, 7, 4, 0, 0, 7); g.fill();
+  if (K.item === "box"){ g.fillStyle = "#d9a86c"; g.fillRect(70, 96, 46, 38); g.strokeRect(70, 96, 46, 38); g.beginPath(); g.moveTo(93, 96); g.lineTo(93, 134); g.stroke(); }
+  if (K.item === "food"){ g.fillStyle = "#fff3f6"; g.fillRect(72, 100, 44, 30); g.strokeRect(72, 100, 44, 30); g.fillStyle = "#ff6b4a"; g.fillRect(72, 108, 44, 6); }
+  if (K.item === "bag"){ g.fillStyle = "#3a3f55"; g.fillRect(80, 104, 36, 28); g.strokeRect(80, 104, 36, 28); g.strokeRect(90, 96, 16, 10); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function spawnVisitor(kind){
+  const K = VISITOR[kind], start = K.from();
+  const v = {kind, name:K.name, x:start.x, y:start.y, path:[], resolve:null, t:0, face:1};
+  v.mat = new THREE.SpriteMaterial({map:visitorTexture(kind), transparent:true, alphaTest:.1});
+  v.sprite = new THREE.Sprite(v.mat); v.sprite.center.set(.5, 0); v.sprite.scale.set(52, 61, 1); v.sprite.userData.sharedGeometry = true;   // Sprite 기하는 모든 스프라이트가 같이 써요
+  v.obj = new THREE.Group(); v.obj.add(v.sprite); scene.add(v.obj);
+  const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = K.name; v.nmO = new CSS2DObject(nm); v.obj.add(v.nmO);
+  const bub = document.createElement("div"); bub.className = "bub"; v.bubEl = bub; v.bubO = new CSS2DObject(bub); v.bubO.position.y = 100; v.obj.add(v.bubO);
+  visitors.push(v); return v;
+}
+function vSay(v, text, ms = 2600){ v.bubEl.textContent = text; v.bubEl.classList.add("show"); clearTimeout(v.bubT); v.bubT = setTimeout(() => v.bubEl.classList.remove("show"), ms); }
+function vWalk(v, pts){
+  if (v.resolve){ const r = v.resolve; v.resolve = null; r(false); }
+  v.path = pts.map(p => ({x:p.x, y:p.y})); return new Promise(res => { v.resolve = res; });
+}
+// 바깥 → 정문 → 로비, 로비 → 건물 안 (복도를 따라)
+const enterPath = v => [{x:v.x, y:735}, {x:DOOR_OUT.x, y:735}, DOOR_OUT, LOBBY];
+const leavePath = v => [...(v.y < LOBBY.y - 4 ? route(1, {x:v.x, y:v.y}, LOBBY) : [LOBBY]), DOOR_OUT, {x:DOOR_OUT.x, y:735}, {x:rand([-460, 1700]), y:735}];
+async function visitorLeave(v, line){
+  if (v.leaving) return; v.leaving = true;
+  if (line) vSay(v, line, 2400);
+  await vWalk(v, leavePath(v));
+  const k = visitors.indexOf(v); if (k >= 0) visitors.splice(k, 1);
+  clearTimeout(v.bubT); v.mat.map.dispose(); disposeObject(v.obj); v.nmO.element.remove(); v.bubEl.remove();   // 손님별 텍스처·재질 정리
+}
+function visitorTick(dt){
+  const show = viewFloor === 0 || viewFloor === 1;
+  for (const v of visitors){
+    v.t += dt; let bob = 0;
+    if (v.path.length){
+      const g = v.path[0], dx = g.x - v.x, dy = g.y - v.y, d = Math.hypot(dx, dy), step = 100 * dt;
+      if (Math.abs(dx) > 1){ const fc = dx < 0 ? -1 : 1; if (fc !== v.face){ v.face = fc; v.sprite.scale.x = Math.abs(v.sprite.scale.x) * fc; } }
+      if (d <= step){ v.x = g.x; v.y = g.y; v.path.shift(); } else { v.x += dx / d * step; v.y += dy / d * step; }
+      bob = Math.abs(Math.sin(v.t * 11)) * (REDUCED ? 1 : 4);
+      if (!v.path.length){ const r = v.resolve; v.resolve = null; r && r(true); }
+    }
+    v.obj.position.copy(W(v.x, v.y, 1)); v.sprite.position.y = bob;
+    v.obj.visible = show; v.nmO.visible = show && viewFloor !== 0; v.bubO.visible = show && viewFloor !== 0;
+  }
+}
+// 로비로 마중 나갈 친구: 1층에서 한가한 친구 중 가까운 순서 (명령받은 친구·업무 중인 친구는 빼요)
+function greeter(prefer){
+  const now = performance.now(), free = CH.filter(c => c.manual < now && !c.ride && !c.hidden && c.act?.kind !== "sleep");
+  const p = prefer && BY[prefer]; if (p && free.includes(p) && p.floor === 1) return p;      // 원하는 친구가 1층에 있을 때만 (손님을 오래 기다리게 하지 않게)
+  const pool = free.length ? free : CH.filter(c => c.manual !== Infinity);
+  return pool.sort((a, b) => (a.floor !== 1) - (b.floor !== 1) || Math.hypot(a.x - LOBBY.x, a.y - LOBBY.y) - Math.hypot(b.x - LOBBY.x, b.y - LOBBY.y))[0] || null;
+}
+async function meetAtLobby(c, v, line){
+  let ok = false;
+  await runSeq(c, [async () => { ok = await walkTo(c, {f:1, ...RECEPTION}); if (ok){ say(c, line, 2200); await sleep(1600); } }]);
+  return ok && !v.leaving;
+}
+
 async function sendHelpers(ids, spot, actLine, secs){
   const helpers = ids.map(id => BY[id]).filter(Boolean);
   await Promise.all(helpers.map((c, i) => runSeq(c, [async () => {
@@ -987,22 +1070,90 @@ async function sendHelpers(ids, spot, actLine, secs){
     c.act = null;
   }])));
 }
+// 탕비실 식탁에 모여 먹기 (케이크·배달 음식 공통). 명령받은 친구는 빼요.
+function gatherToEat(key, endMsg, lines){
+  const SEATS1 = [{x:800,y:240},{x:860,y:240},{x:830,y:302},{x:770,y:270},{x:890,y:270},{x:800,y:300},{x:860,y:300},{x:830,y:230}];
+  CH.filter(c => c.manual < performance.now()).forEach((c, i) => runSeq(c, [async () => {
+    if (!await walkTo(c, {f:1, ...SEATS1[i % SEATS1.length]})) return;
+    say(c, rand(lines), 2000); c.act = {kind:"busy", t0:performance.now()};
+    for (let s = 0; s < 5; s++){ await sleep(1000); c.needs.hunger = clamp(c.needs.hunger + 6, 0, 100); c.needs.fun = clamp(c.needs.fun + 4, 0, 100); }
+    c.act = null; CH.forEach(o => { if (o !== c && o.floor === 1 && Math.hypot(o.x - c.x, o.y - c.y) < 120) addRel(c, o, 1); });
+  }], true));
+  setTimeout(() => endEvent(key, endMsg, 20), 26000);
+}
+let eventVisitors = [];
 const EVENTS = {
+  // 택배: 기사님이 정문으로 들어와 로비에서 기다려요. 받으러 가면 상자를 로비에 두고 나가요.
   parcel(){
-    eventObjs = [box(1, 480, CY - 14, 30, 28, 24, "#c9a07a"), box(1, 480, CY - 1, 30, 2, 24.5, "#e8d2b4")];
-    toast("📦 택배가 왔어요! (1층 복도)", "열어 보기", () => { const c = rand(CH.filter(o => o.floor === 1)) || rand(CH); say(c, "와아… 선물이다!", 2000); endEvent("parcel", "📦 택배를 열었어요!", 30 + Math.floor(Math.random() * 50)); });
-    return 50;
+    const v = spawnVisitor("courier"); eventVisitors.push(v);
+    vWalk(v, enterPath(v)).then(ok => { if (!ok || eventActive !== "parcel") return; vSay(v, "택배 왔어요~!", 3000); });
+    let handled = false;
+    const receive = async () => {
+      if (handled || eventActive !== "parcel") return; handled = true; hideToast();
+      const c = greeter(); if (c){ log(`${josa(c.name, "이가")} 택배를 받으러 로비로 가요`); await meetAtLobby(c, v, "감사합니다!"); }
+      if (eventActive !== "parcel") return;
+      vSay(v, "여기 사인해 주세요~", 2000); await sleep(1800);
+      eventObjs.push(box(1, 1118, 590, 30, 28, 24, "#c9a07a"), box(1, 1118, 603, 30, 2, 24.5, "#e8d2b4"));
+      visitorLeave(v, "좋은 하루 되세요!");
+      toast("📦 택배를 받았어요! (1층 로비)", "열어 보기", () => { const o = c || rand(CH); say(o, "와아… 선물이다!", 2000); endEvent("parcel", "📦 택배를 열었어요!", 30 + Math.floor(Math.random() * 50)); });
+      registerEventObjs("parcel", 1);
+    };
+    toast("📦 택배 기사님이 정문으로 들어오고 있어요", "받으러 가기", receive);
+    setTimeout(() => { if (!handled && eventActive === "parcel"){ log("📦 아무도 안 나와서 기사님이 로비에 두고 갔어요"); handled = true;
+      eventObjs.push(box(1, 1118, 590, 30, 28, 24, "#c9a07a")); visitorLeave(v, "문 앞에 두고 갈게요~");
+      toast("📦 로비에 택배가 놓여 있어요", "열어 보기", () => endEvent("parcel", "📦 택배를 열었어요!", 20)); registerEventObjs("parcel", 1); } }, 45000);
+    return 120;
+  },
+  // 음식 배달: 라이더가 로비까지 오면 받아서 탕비실 식탁에 차리고 다 같이 먹어요
+  delivery(){
+    const v = spawnVisitor("rider"); eventVisitors.push(v);
+    vWalk(v, enterPath(v)).then(ok => { if (ok && eventActive === "delivery") vSay(v, "배달 왔습니다~!", 3000); });
+    let handled = false;
+    const receive = async () => {
+      if (handled || eventActive !== "delivery") return; handled = true; hideToast();
+      const c = greeter("kurimanju"); if (c){ log(`${josa(c.name, "이가")} 배달 음식을 받으러 가요`); await meetAtLobby(c, v, "캬~ 맛있겠다!"); }
+      if (eventActive !== "delivery") return;
+      visitorLeave(v, "맛있게 드세요!");
+      eventObjs.push(cyl(1, 812, 275, 12, 6, "#fff3f6", 26), cyl(1, 848, 275, 12, 6, "#ffe0b3", 26), box(1, 822, 266, 18, 16, 10, "#ff6b4a", 26));
+      log("🍱 탕비실 식탁에 음식을 차렸어요. 다들 모여~");
+      gatherToEat("delivery", "🍱 다 같이 배달 음식을 먹었어요!", ["맛있다…!","배달 최고~","냠냠!","야하!"]);
+    };
+    toast("🛵 주문한 음식이 도착했어요! (1층 로비)", "받으러 가기", receive);
+    setTimeout(() => { if (!handled) receive(); }, 30000);        // 아무도 안 누르면 알아서 받으러 가요
+    return 0;
+  },
+  // 외부 손님 미팅: 랏코가 로비에서 맞이해 회의실로 안내하고, 두 명이 함께 미팅해요
+  guest(){
+    const v = spawnVisitor("guest"); eventVisitors.push(v);
+    vWalk(v, enterPath(v)).then(ok => { if (ok && eventActive === "guest") vSay(v, "안녕하세요, 미팅하러 왔어요!", 3200); });
+    let handled = false;
+    const host = async () => {
+      if (handled || eventActive !== "guest") return; handled = true; hideToast();
+      const lead = greeter("rakko"); if (!lead){ visitorLeave(v, "다음에 다시 올게요~"); endEvent("guest"); return; }
+      log(`🤝 ${josa(lead.name, "이가")} 외부 손님을 맞이해요`);
+      await meetAtLobby(lead, v, "어서 오세요. 회의실로 안내할게요.");
+      if (eventActive !== "guest") return;
+      const seat = S1.meet[1], mates = CH.filter(c => c !== lead && c.manual < performance.now() && c.floor === 1 && !c.ride && !c.hidden).slice(0, 2);
+      await Promise.all([
+        vWalk(v, route(1, {x:v.x, y:v.y}, seat)),
+        runSeq(lead, [() => walkTo(lead, {f:1, ...S1.meet[0]})]),
+        ...mates.map((c, i) => runSeq(c, [() => walkTo(c, {f:1, ...S1.meet[2 + i]})])),
+      ]);
+      if (eventActive !== "guest") return;
+      const LINES = [[v, "이번에 같이 하고 싶은 일이 있어서 왔어요."], [lead, "좋습니다. 자세히 들어 볼게요."], [mates[0], "자료는 제가 정리할게요!"], [v, "일정은 다음 달 초면 좋겠어요."], [mates[1] || lead, "할 수 있어요…!"], [lead, "좋아요. 정리해서 연락드릴게요."]];
+      for (const [who, text] of LINES){ if (!who || eventActive !== "guest") continue; who.kind ? vSay(who, text, 3200) : say(who, text, 3200); log(`🤝 ${who.name}: ${text}`); await sleep(2800); }
+      [lead, ...mates].forEach(c => { addXP(c, 10, "social"); addRel(c, lead, .5); });
+      visitorLeave(v, "감사합니다! 또 올게요~");
+      endEvent("guest", "🤝 외부 손님과 미팅을 마쳤어요", 60);
+    };
+    toast("🤝 외부 손님이 미팅하러 오고 있어요", "맞이하기", host);
+    setTimeout(() => { if (!handled) host(); }, 40000);
+    return 0;
   },
   cake(){
     eventObjs = [cyl(1, 830, 275, 14, 16, "#fff3f6", 26), cyl(1, 830, 275, 2, 8, "#ffd36b", 42)];
     toast("🎂 누가 케이크를 사 왔어요! 다들 탕비실로~");
-    CH.filter(c => c.manual < performance.now()).forEach((c, i) => runSeq(c, [async () => {   // 명령받은 친구는 빼고
-      if (!await walkTo(c, {f:1, ...[{x:800,y:240},{x:860,y:240},{x:830,y:302},{x:770,y:270},{x:890,y:270},{x:800,y:300},{x:860,y:300},{x:830,y:230}][i]})) return;
-      say(c, rand(["맛있다…!","케이크다~","야하!"]), 2000); c.act = {kind:"busy", t0:performance.now()};
-      for (let s = 0; s < 5; s++){ await sleep(1000); c.needs.hunger = clamp(c.needs.hunger + 6, 0, 100); c.needs.fun = clamp(c.needs.fun + 4, 0, 100); }
-      c.act = null; CH.forEach(o => { if (o !== c && o.floor === 1 && Math.hypot(o.x - c.x, o.y - c.y) < 120) addRel(c, o, 1); });
-    }], true));
-    setTimeout(() => endEvent("cake", "🎂 다 같이 케이크를 먹었어요!", 20), 26000);
+    gatherToEat("cake", "🎂 다 같이 케이크를 먹었어요!", ["맛있다…!","케이크다~","야하!"]);
     return 30;
   },
   blackout(){
@@ -1035,7 +1186,7 @@ function startEvent(force){
   if (eventActive || document.hidden || (!force && (isNight() || activity.busy))) return false;   // 업무·회의 중에는 이벤트를 미뤄요
   const k = typeof force === "string" && EVENTS[force] ? force : rand(Object.keys(EVENTS)); eventActive = k; SFX.event(); log(`🔔 이벤트!`);
   const ttl = EVENTS[k](); registerEventObjs(k);
-  if (ttl) setTimeout(() => endEvent(k, k === "parcel" ? "📦 누군가 택배를 정리했어요" : null, k === "parcel" ? 20 : 0), ttl * 1000);
+  if (ttl) setTimeout(() => endEvent(k, k === "parcel" ? "📦 누군가 택배를 정리했어요" : null, k === "parcel" ? 20 : 0), ttl * 1000);   // 너무 오래 걸리면 정리
   return true;
 }
 setInterval(() => { if (Math.random() < .5) startEvent(); }, 150000);
@@ -1530,9 +1681,10 @@ function registerDecor(d, g){
   registry.register({id, name:it.name, floor:d.f, actions:[it.act], spot:P(d.f, d.x, d.y + 30), object:g, decor:d});
 }
 // 이벤트 물체 (택배, 수상한 녀석): 알림 버튼과 같은 행동을 해요
-function registerEventObjs(k){
+function registerEventObjs(k, floor){
   const o = eventObjs[0]; if (!o || !eventAction) return;
-  registry.register({id:"event-" + k, name:{parcel:"택배 상자", intruder:"수상한 녀석", cake:"케이크"}[k] || "이벤트", floor:k === "intruder" ? 3 : 1, actions:["__event"], custom:eventAction, object:o, spot:null});
+  registry.unregister("event-" + k);
+  registry.register({id:"event-" + k, name:{parcel:"택배 상자", intruder:"수상한 녀석", cake:"케이크"}[k] || "이벤트", floor:floor || (k === "intruder" ? 3 : 1), actions:["__event"], custom:eventAction, object:o, spot:null});
 }
 const spotOf = it => typeof it.spot === "function" ? it.spot() : it.spot;
 const actLabel = (it, k) => k === "__event" ? it.custom.label : objectActionLabel(it.name, k);
@@ -1622,6 +1774,58 @@ function setHover(it, ev){
   const sm = document.createElement("small"); sm.textContent = why || (it.custom ? it.custom.label : it.actions.map(k => ACTIONS[k]?.name).filter(Boolean).join(" · ")); tip.append(sm);
   tip.style.left = `${ev.clientX - r.left}px`; tip.style.top = `${ev.clientY - r.top}px`; tip.hidden = false;
 }
+
+/* ================= live: 터미널의 실제 작업과 동기화 ================= */
+// Claude Code가 실제로 일하는 동안(tools/live.mjs나 아티팩트 db로 알려 주면) 맡은 캐릭터가 자리에서 그 일을 하고, 보드에 단계가 보여요.
+const LIVE = {status:null, working:new Map(), wasOn:false};
+const STEP_TXT = {todo:"할 일", doing:"진행 중", done:"완료"};
+function renderLive(st){
+  const on = st?.state === "working", pill = $("livePill"), box = $("liveBox");
+  const done = st ? st.steps.filter(s => s.status === "done").length : 0;
+  pill.hidden = !on; if (on) pill.textContent = `🛠 터미널 작업 중: ${st.title || "작업"}${st.steps.length ? ` (${done}/${st.steps.length})` : ""}`;
+  const head = document.createElement("p"); head.className = "note"; head.style.marginTop = "0";
+  head.textContent = on ? `지금 터미널에서 실제로 하고 있는 일이에요${st.request ? `: ${st.request}` : ""}`
+    : st?.title ? `지금은 터미널 작업이 없어요. 마지막 작업: ${st.title}${st.updatedAt ? ` (${new Date(st.updatedAt).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"})})` : ""}` : "터미널 작업 소식이 아직 없어요.";
+  const list = document.createElement("ul"); list.className = "livesteps";
+  for (const s of st?.steps || []){
+    const li = document.createElement("li"); li.className = s.status;
+    const b = document.createElement("b"); b.textContent = `${NAMES[s.who]} · ${ROLES[s.who].short}`;
+    const t = document.createElement("span"); t.textContent = s.title;
+    const m = document.createElement("small"); m.textContent = STEP_TXT[s.status];
+    li.append(b, t, m); list.append(li);
+  }
+  box.replaceChildren(head, list);
+}
+function liveApply(st){
+  LIVE.status = st; renderLive(st);
+  const on = st?.state === "working", now = performance.now();
+  if (on !== LIVE.wasOn){ log(on ? `🛠 터미널에서 실제 작업을 시작했어요: ${st.title}` : "✅ 터미널의 실제 작업이 끝났어요"); LIVE.wasOn = on; }
+  const doing = new Map(on ? st.steps.filter(s => s.status === "doing").map(s => [s.who, s.title]) : []);
+  // 끝난 단계: 자리에서 일어나 기뻐해요
+  for (const [id, tag] of LIVE.working) if (!doing.has(id)){
+    const c = BY[id]; LIVE.working.delete(id);
+    if (c.seq === tag){ c.cur = null; c.act = {kind:"jump", t0:now}; say(c, rand(["끝!","다 했다~","야하!","…완료!"]), 2000); c.manual = now + 6000; }
+    if (DESK[id]) monitors[id].redraw(`${c.name}\n휴식 중`);
+  }
+  // 진행 중 단계: 맡은 캐릭터가 자리로 가서 일해요 (내가 직접 시킨 행동·업무 지시 중인 친구는 끝난 뒤에)
+  for (const [id, title] of doing){
+    const c = BY[id];
+    if (LIVE.working.has(id)){ if (LIVE.working.get(id) === c.seq) continue; LIVE.working.delete(id); }   // 다른 명령으로 불려 갔으면 끝난 뒤 다시 자리로
+    if (c.manual > now || (activity.busy && c.manual === Infinity)) continue;
+    runSeq(c, [async () => {
+      if (!await walkTo(c, workSpot(c)) || !LIVE.working.has(id)) return;
+      c.cur = "devwork"; c.act = {kind:"busy", t0:performance.now()}; say(c, title.length > 20 ? title.slice(0, 19) + "…" : title, 2600);
+      for (let k = 0; LIVE.working.get(id) === c.seq; k++){
+        if (DESK[id]) monitors[id].redraw(`${c.name}\n${title.slice(0, 11)}\n${"▮".repeat(k % 8 + 1)}`);
+        if (k % 12 === 6) say(c, rand(["타닥타닥…","집중!","거의 다 왔어","…!"]), 1600);
+        await sleep(1500);
+      }
+    }], true);
+    LIVE.working.set(id, c.seq);
+  }
+}
+startLiveSync(liveApply);
+setInterval(() => { if (LIVE.status) liveApply(LIVE.status); }, 10000);    // 바빴던 친구도 나중에 합류하게
 
 /* ================= panels ================= */
 // 진행 막대: 화면 읽기 프로그램이 값을 읽을 수 있게 role=progressbar
@@ -1791,13 +1995,13 @@ function tick(){
     c.mat.rotation = rot;
     c.obj.position.copy(W(c.x, c.y, 1)); c.obj.position.y = h; c.sprite.position.y = bob;
     const vis = visibleChar(c) && !c.hidden;
-    c.obj.visible = vis; c.nmO.visible = vis && viewFloor !== 0; c.bubO.visible = vis && viewFloor !== 0;
+    c.obj.visible = !!vis; c.nmO.visible = !!vis && viewFloor !== 0; c.bubO.visible = !!vis && viewFloor !== 0;
     c.gem.rotation.y += dt * 1.6; c.gem.position.y = c.H + 22 + bob + Math.sin(c.t * 2) * 2; c.gem.visible = c.act?.kind !== "sleep";
     c.hatG.position.y = c.H - 6 + bob; c.hatG.visible = c.act?.kind !== "sleep";
     if ((c.gemT = (c.gemT || 0) + dt) > .5){ c.gemT = 0; const col = moodColor(mood(c)); c.gem.material.color.copy(col); c.gem.material.emissive.copy(col).multiplyScalar(.5); }
   }
   if (selected){ ring.visible = visibleChar(selected) && !selected.hidden; ring.position.copy(selected.obj.position); ring.position.y += 1.2; ring.material.opacity = .6 + Math.sin(now / 200) * .3; }
-  camTick(dt); cityTick(dt);
+  camTick(dt); cityTick(dt); visitorTick(dt);
   controls.update();
   renderer.render(scene, camera); labels.render(scene, camera);
 }
@@ -1818,7 +2022,7 @@ applyView(); resize(); camHome(); applyTime(); renderBoard(); renderQuests(); re
 $("coins").textContent = `🪙 ${S.coins}`;
 if (isNight()) CH.forEach(c => { c.floor = 2; c.x = BED[c.id].x; c.y = BED[c.id].y; c.act = {kind:"sleep", t0:performance.now()}; });
 tick();
-window.__office = {CH, S, ESC, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
+window.__office = {CH, S, ESC, visitors, liveApply, LIVE, addCoins, startEvent, renderer, camera, controls, registry, activity, quests, completeQuest, useObject, select, endEvent, tapObject, walkTo, runSeq, stop, ELEV, newQuest, emit, P, playSession, SESSIONS, get eventActive(){ return eventActive; }};   // 디버그·시험용
 if (DEV){   // ?dev=1 로 열면 그리기 요청·메모리 숫자를 보여 줘요 (일반 사용자에게는 숨김)
   const d = $("devStats"); d.hidden = false; let frames = 0, t0 = performance.now();
   const loop = () => { frames++; const now = performance.now(); if (now - t0 > 1000){ const i = renderer.info; d.textContent = `fps ${Math.round(frames * 1000 / (now - t0))}\ncalls ${i.render.calls}\ntris ${i.render.triangles}\ngeo ${i.memory.geometries}\ntex ${i.memory.textures}\nobjs ${registry.size}`; frames = 0; t0 = now; } requestAnimationFrame(loop); };
